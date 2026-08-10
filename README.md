@@ -1,4 +1,3 @@
-# Proyecto IngSoft3 - versión A
-
+# Título Versión A
 ## Instalación
 
