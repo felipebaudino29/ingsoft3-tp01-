@@ -555,3 +555,112 @@ Las decisiones implementadas permitieron obtener una aplicacion donde:
 - El sistema puede ejecutarse utilizando imagenes previamente publicadas.
 - Una instalacion nueva puede crear automaticamente la estructura de la base de datos.
 - La arquitectura queda preparada para continuar utilizandose en los siguientes trabajos practicos del semestre.
+
+
+---
+
+# TP3 - Planificacion y trazabilidad
+
+## 1. Duracion del sprint
+
+Se definio una duracion de 3 dias para el Sprint 1.
+
+La duracion se eligio teniendo en cuenta el plazo disponible hasta la entrega del TP3 y el alcance reducido del sprint, compuesto por una historia de usuario y dos tareas tecnicas.
+
+Este periodo permite implementar los cambios, verificar su funcionamiento y revisar el resultado antes de la entrega, manteniendo una iteracion corta y facil de controlar.
+
+---
+
+## 2. Limite de trabajo en progreso
+
+Se configuro un limite de trabajo en progreso de 2 elementos en la columna In Progress.
+
+El proyecto se desarrolla de forma individual, por lo que se utilizo como referencia la cantidad de personas mas uno.
+
+El limite permite trabajar sobre una tarea principal y, si esta queda temporalmente bloqueada por una revision o dependencia, comenzar una segunda tarea sin acumular una cantidad excesiva de trabajo sin terminar.
+
+Un limite mayor podria reducir su utilidad, ya que permitiria comenzar demasiadas tareas simultaneamente y dificultaria priorizar la finalizacion del trabajo iniciado.
+
+---
+
+## 3. Diagnostico de una historia mal escrita
+
+La historia:
+
+`Como desarrollador quiero crear la tabla usuarios para guardar los datos.`
+
+esta mal escrita como historia de usuario porque describe directamente una solucion tecnica y no expresa valor o una necesidad observable para un usuario.
+
+En realidad, crear una tabla es una tarea tecnica.
+
+Una posible reescritura seria:
+
+`Como usuario quiero que mis datos queden almacenados para poder recuperarlos cuando vuelva a utilizar la aplicacion.`
+
+A partir de esta historia podria surgir como tarea tecnica la creacion de la tabla de usuarios.
+
+---
+
+## 4. Problemas encontrados y soluciones
+
+### Incorporacion automatica de issues al Project
+
+Durante la creacion de los issues se verifico que GitHub Projects incorporaba automaticamente la epica, la historia y las tareas mediante el workflow Auto-add to project.
+
+En el caso del bug inicialmente se verifico manualmente su pertenencia al proyecto, comprobando luego que tambien habia sido agregado automaticamente y que su estado inicial era Todo.
+
+### Configuracion del sprint
+
+Se creo un campo personalizado denominado Sprint de tipo Iteration.
+
+Inicialmente GitHub proponia una duracion de dos semanas, pero se decidio modificarla a 3 dias para alinearla con el plazo real disponible hasta la entrega del TP3.
+
+### Trazabilidad entre tarea y Pull Request
+
+Para implementar la tarea #12 se creo una rama independiente:
+
+`ci/workflow-de-build-y-tests`
+
+En ella se agrego el archivo:
+
+`.github/workflows/ci.yml`
+
+Luego se creo el Pull Request #15 hacia main y se incluyo en su descripcion:
+
+`Closes #12`
+
+GitHub reconocio automaticamente la relacion entre el Pull Request y la tarea.
+
+Al realizar el merge, la tarea #12 se cerro automaticamente y el workflow del Project `Item closed -> Status: Done` la movio a la columna Done.
+
+Como consecuencia, la historia #11 paso de 0/2 tareas completadas a 1/2, mostrando un avance del 50%.
+
+### Workflow de CI
+
+El workflow creado en este TP es un esqueleto inicial.
+
+Se configuro para ejecutarse ante Pull Requests mediante:
+
+`on: [pull_request]`
+
+y utiliza:
+
+`actions/checkout@v4`
+
+para obtener el contenido del repositorio dentro del runner de GitHub Actions.
+
+Al crear el Pull Request se comprobo que el workflow se ejecuto correctamente y el check finalizo exitosamente.
+
+La implementacion completa de build y tests se continuara en el TP4.
+
+---
+
+## 5. Declaracion de uso de IA
+
+Se utilizo IA como herramienta de apoyo durante el desarrollo del TP3 para interpretar la guia, organizar los pasos de trabajo, comprender conceptos como epica, historia de usuario, criterios de aceptacion, tareas, sprint, limite de trabajo en progreso y trazabilidad, y para revisar las configuraciones realizadas.
+
+Las acciones fueron ejecutadas y verificadas manualmente sobre GitHub y el repositorio.
+
+La validacion se realizo comprobando el resultado de cada paso mediante el Project, los issues, la jerarquia de sub-issues, el Board, el Sprint, el Pull Request, la ejecucion de GitHub Actions y los comandos de Git.
+
+En particular, se verifico que el Pull Request #15 ejecutara correctamente el workflow, cerrara automaticamente la tarea #12 mediante `Closes #12` y que dicha tarea fuera movida automaticamente a Done por el workflow del Project.
