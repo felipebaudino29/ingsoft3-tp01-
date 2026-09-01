@@ -664,3 +664,216 @@ Las acciones fueron ejecutadas y verificadas manualmente sobre GitHub y el repos
 La validacion se realizo comprobando el resultado de cada paso mediante el Project, los issues, la jerarquia de sub-issues, el Board, el Sprint, el Pull Request, la ejecucion de GitHub Actions y los comandos de Git.
 
 En particular, se verifico que el Pull Request #15 ejecutara correctamente el workflow, cerrara automaticamente la tarea #12 mediante `Closes #12` y que dicha tarea fuera movida automaticamente a Done por el workflow del Project.
+
+
+---
+
+# TP4 - CI: Pipelines as Code
+
+## 1. Estructura del pipeline
+
+Para el TP4 se amplio el workflow de GitHub Actions creado inicialmente en el TP3.
+
+El archivo utilizado es:
+
+`.github/workflows/ci.yml`
+
+El pipeline se configuro para ejecutarse ante dos eventos:
+
+- Pull Requests dirigidos hacia `main`.
+- Pushes realizados sobre `main`.
+
+La ejecucion sobre Pull Requests permite verificar los cambios antes de incorporarlos a la rama principal.
+
+La ejecucion sobre `main` permite volver a verificar el estado final del repositorio luego de integrar los cambios y mantener actualizado el estado visible del pipeline.
+
+---
+
+## 2. Jobs de backend y frontend
+
+El pipeline se dividio en dos jobs independientes:
+
+`build-backend`
+
+`build-frontend`
+
+El job `build-backend` construye la imagen utilizando:
+
+`backend/Dockerfile`
+
+El job `build-frontend` construye la imagen utilizando:
+
+`frontend/Dockerfile`
+
+Se decidio mantener ambos builds separados porque frontend y backend son componentes independientes de la aplicacion y poseen Dockerfiles diferentes.
+
+Los jobs no tienen dependencias entre ellos, por lo que GitHub Actions puede ejecutarlos en paralelo.
+
+Esta decision permite identificar facilmente que componente presenta un problema y evita esperar innecesariamente a que termine un build para comenzar el otro.
+
+Cada job se ejecuta en su propio runner, por lo que no comparte directamente el sistema de archivos ni el entorno de ejecucion con el otro job.
+
+---
+
+## 3. Uso de los Dockerfiles existentes
+
+Se decidio que el pipeline construya las imagenes utilizando los mismos Dockerfiles implementados y verificados durante el TP2.
+
+De esta manera, el proceso de construccion utilizado por Integracion Continua es el mismo que forma parte de la aplicacion.
+
+El pipeline no vuelve a definir de forma independiente los comandos necesarios para compilar o preparar frontend y backend.
+
+Esta decision evita duplicar logica de construccion entre los Dockerfiles y GitHub Actions.
+
+Si en el futuro cambia la forma de construir alguno de los componentes, el cambio puede realizarse en su Dockerfile y el pipeline continuara utilizando esa misma definicion.
+
+---
+
+## 4. Cache de capas Docker
+
+Para optimizar las construcciones se utilizo el cache de GitHub Actions mediante Docker Buildx.
+
+Se configuraron caches independientes para cada componente utilizando:
+
+`scope=backend`
+
+y:
+
+`scope=frontend`
+
+La separacion evita que ambos jobs utilicen el mismo scope y permite administrar de manera independiente las capas correspondientes a cada imagen.
+
+La primera ejecucion genera y almacena las capas necesarias.
+
+En una ejecucion posterior, si las instrucciones y archivos asociados a una capa no cambiaron, Docker puede reutilizarla en lugar de volver a ejecutarla.
+
+Para comprobar este comportamiento se realizo una segunda corrida del pipeline sin modificar el codigo de la aplicacion.
+
+En los logs de backend y frontend se observaron multiples capas identificadas como:
+
+`CACHED`
+
+Tambien se observo la importacion del cache previamente almacenado en GitHub Actions.
+
+Esto permitio comprobar experimentalmente que las capas sin cambios fueron reutilizadas.
+
+El cache es una optimizacion y no una dependencia necesaria para que el pipeline funcione.
+
+Si el cache desaparece o no se encuentra disponible, Docker debe reconstruir las capas desde cero. El pipeline puede tardar mas tiempo, pero debe continuar funcionando correctamente.
+
+---
+
+## 5. Pipeline como gate de main
+
+Se configuro la proteccion de la rama `main` para requerir que los checks del pipeline finalicen correctamente antes de permitir un merge.
+
+Los checks requeridos son:
+
+- `build-backend`
+- `build-frontend`
+
+Tambien se mantuvo el requisito de trabajar mediante Pull Request y se configuro que la rama de trabajo deba encontrarse actualizada con `main` antes de realizar el merge.
+
+De esta manera, un cambio no puede incorporarse a `main` si alguno de los builds obligatorios falla.
+
+---
+
+## 6. Prueba controlada del gate
+
+Para verificar que la proteccion funcionara realmente se realizo una prueba controlada.
+
+Se creo una rama especifica y se agrego temporalmente al `package.json` del frontend una dependencia inexistente:
+
+`paquete-inexistente-para-probar-ci`
+
+Al abrir el Pull Request, GitHub Actions ejecuto ambos jobs.
+
+El resultado fue:
+
+- `build-backend`: correcto.
+- `build-frontend`: fallido.
+
+El backend continuo construyendose correctamente porque el cambio solamente afectaba al frontend.
+
+El frontend fallo durante el proceso de instalacion de dependencias, ya que el paquete agregado intencionalmente no podia ser instalado.
+
+Como `build-frontend` estaba configurado como status check obligatorio, GitHub bloqueo el merge del Pull Request.
+
+Luego se elimino la dependencia inexistente y se realizo un nuevo commit sobre la misma rama.
+
+El mismo Pull Request se actualizo automaticamente y el pipeline volvio a ejecutarse.
+
+En esta segunda ejecucion ambos jobs finalizaron correctamente y GitHub habilito nuevamente el merge.
+
+Finalmente se realizo el merge del Pull Request.
+
+Esta prueba permitio comprobar que el pipeline no solamente informa errores, sino que funciona efectivamente como una condicion obligatoria antes de incorporar cambios a `main`.
+
+---
+
+## 7. Badge de estado
+
+Se agrego al `README.md` un badge correspondiente al workflow de Integracion Continua.
+
+El badge permite visualizar directamente desde la pagina principal del repositorio si la ultima ejecucion del pipeline sobre `main` finalizo correctamente.
+
+Ademas, el badge funciona como acceso directo al historial de ejecuciones del workflow.
+
+Esto permite hacer visible el estado de Integracion Continua sin necesidad de ingresar inicialmente a la seccion Actions.
+
+---
+
+## 8. Problemas encontrados y soluciones
+
+### Verificacion del cache
+
+La configuracion del cache por si sola no era suficiente para demostrar que realmente estaba siendo reutilizado.
+
+Para verificarlo se realizo una segunda ejecucion del pipeline sin cambios en el codigo.
+
+En los logs de Docker Buildx se comprobo la importacion del cache de GitHub Actions y la aparicion de capas marcadas como `CACHED`.
+
+### Prueba de fallo del pipeline
+
+Para demostrar el funcionamiento del gate era necesario generar un error controlado que provocara un build fallido.
+
+Se decidio realizar la prueba sobre el frontend agregando temporalmente una dependencia inexistente.
+
+Esto permitio provocar un error reproducible sin realizar cambios permanentes en la logica de la aplicacion.
+
+Luego de obtener la evidencia del bloqueo, el cambio fue revertido mediante un nuevo commit en la misma rama.
+
+### Verificacion independiente de los jobs
+
+Durante la prueba del gate se observo que el fallo del frontend no impidio que el backend finalizara correctamente.
+
+Esto permitio comprobar en la practica que los dos jobs son independientes y que un error puede identificarse especificamente en el componente afectado.
+
+---
+
+## 9. Resultado del TP4
+
+Con la implementacion realizada se obtuvo un pipeline de Integracion Continua donde:
+
+- Los Pull Requests hacia `main` ejecutan automaticamente el pipeline.
+- Los pushes sobre `main` vuelven a ejecutar el pipeline.
+- Backend y frontend se construyen mediante sus Dockerfiles.
+- Ambos builds se ejecutan como jobs independientes y en paralelo.
+- Las capas Docker pueden reutilizarse mediante cache.
+- Los builds son checks obligatorios para poder realizar un merge.
+- Un build fallido bloquea efectivamente la integracion a `main`.
+- El estado del pipeline queda visible mediante un badge en el README.
+
+El pipeline queda preparado para incorporar en los siguientes trabajos practicos nuevas verificaciones, como la ejecucion automatizada de tests.
+
+---
+
+## 10. Declaracion de uso de IA
+
+Se utilizo IA como herramienta de apoyo durante el desarrollo del TP4 para interpretar la guia, comprender los conceptos de Integracion Continua, workflow, jobs, runners, cache y required status checks, y para organizar los pasos de implementacion y verificacion.
+
+La configuracion y las acciones fueron ejecutadas manualmente sobre el repositorio y GitHub.
+
+Cada resultado fue verificado mediante los logs de GitHub Actions, los estados de los jobs, los Pull Requests, las reglas de proteccion de `main` y los comandos de Git.
+
+En particular, se verifico manualmente que backend y frontend pudieran construirse mediante sus Dockerfiles, que el cache reutilizara capas en ejecuciones posteriores, que un fallo intencional bloqueara el merge, que la correccion volviera a habilitarlo y que el badge reflejara el estado del pipeline.
