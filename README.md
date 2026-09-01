@@ -1,5 +1,7 @@
 # Gestor de Materias - Ingenieria de Software 3
 
+[![CI](https://github.com/felipebaudino29/ingsoft3-tp01-/actions/workflows/ci.yml/badge.svg)](https://github.com/felipebaudino29/ingsoft3-tp01-/actions/workflows/ci.yml)
+
 Aplicacion full-stack desarrollada para ser utilizada durante los trabajos practicos de Ingenieria de Software 3.
 
 El sistema permite administrar materias y actividades asociadas a cada materia.
