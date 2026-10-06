@@ -17,6 +17,11 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+// Migración transparente si la base ya existe sin la columna 'notas'
+pool.query(`
+  ALTER TABLE materias ADD COLUMN IF NOT EXISTS notas TEXT DEFAULT '';
+`).catch((err) => console.error("Error al asegurar columna notas:", err));
+
 // =========================
 // HEALTH / INICIO
 // =========================
@@ -37,14 +42,10 @@ app.get("/materias", async (req, res) => {
     const resultado = await pool.query(
       "SELECT * FROM materias ORDER BY id"
     );
-
     res.json(resultado.rows);
   } catch (error) {
     console.error("Error al obtener materias:", error);
-
-    res.status(500).json({
-      error: "Error al obtener las materias",
-    });
+    res.status(500).json({ error: "Error al obtener las materias" });
   }
 });
 
@@ -60,31 +61,21 @@ app.post("/materias", async (req, res) => {
     }
 
     const estadosValidos = ["Cursando", "Pendiente", "Aprobada"];
-
     if (!estadosValidos.includes(estado)) {
-      return res.status(400).json({
-        error: "Estado de materia inválido",
-      });
+      return res.status(400).json({ error: "Estado de materia inválido" });
     }
 
     const resultado = await pool.query(
-      `INSERT INTO materias (nombre, profesor, estado)
-       VALUES ($1, $2, $3)
+      `INSERT INTO materias (nombre, profesor, estado, notas)
+       VALUES ($1, $2, $3, '')
        RETURNING *`,
-      [
-        nombre.trim(),
-        profesor.trim(),
-        estado,
-      ]
+      [nombre.trim(), profesor.trim(), estado]
     );
 
     res.status(201).json(resultado.rows[0]);
   } catch (error) {
     console.error("Error al crear materia:", error);
-
-    res.status(500).json({
-      error: "Error al crear la materia",
-    });
+    res.status(500).json({ error: "Error al crear la materia" });
   }
 });
 
@@ -101,11 +92,8 @@ app.put("/materias/:id", async (req, res) => {
     }
 
     const estadosValidos = ["Cursando", "Pendiente", "Aprobada"];
-
     if (!estadosValidos.includes(estado)) {
-      return res.status(400).json({
-        error: "Estado de materia inválido",
-      });
+      return res.status(400).json({ error: "Estado de materia inválido" });
     }
 
     const resultado = await pool.query(
@@ -115,27 +103,17 @@ app.put("/materias/:id", async (req, res) => {
            estado = $3
        WHERE id = $4
        RETURNING *`,
-      [
-        nombre.trim(),
-        profesor.trim(),
-        estado,
-        id,
-      ]
+      [nombre.trim(), profesor.trim(), estado, id]
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({
-        error: "Materia no encontrada",
-      });
+      return res.status(404).json({ error: "Materia no encontrada" });
     }
 
     res.json(resultado.rows[0]);
   } catch (error) {
     console.error("Error al editar materia:", error);
-
-    res.status(500).json({
-      error: "Error al editar la materia",
-    });
+    res.status(500).json({ error: "Error al editar la materia" });
   }
 });
 
@@ -145,16 +123,12 @@ app.delete("/materias/:id", async (req, res) => {
     const { id } = req.params;
 
     const resultado = await pool.query(
-      `DELETE FROM materias
-       WHERE id = $1
-       RETURNING *`,
+      `DELETE FROM materias WHERE id = $1 RETURNING *`,
       [id]
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({
-        error: "Materia no encontrada",
-      });
+      return res.status(404).json({ error: "Materia no encontrada" });
     }
 
     res.json({
@@ -163,10 +137,59 @@ app.delete("/materias/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error al eliminar materia:", error);
+    res.status(500).json({ error: "Error al eliminar la materia" });
+  }
+});
 
-    res.status(500).json({
-      error: "Error al eliminar la materia",
+// =========================
+// NOTAS / BITÁCORA MARKDOWN
+// =========================
+
+// Obtener notas de una materia
+app.get("/materias/:id/notas", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const resultado = await pool.query(
+      "SELECT id, nombre, notas FROM materias WHERE id = $1",
+      [id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ error: "Materia no encontrada" });
+    }
+
+    res.json({ notas: resultado.rows[0].notas || "" });
+  } catch (error) {
+    console.error("Error al obtener notas:", error);
+    res.status(500).json({ error: "Error al obtener la bitácora de notas" });
+  }
+});
+
+// Guardar notas de una materia
+app.put("/materias/:id/notas", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { notas } = req.body;
+
+    const resultado = await pool.query(
+      `UPDATE materias
+       SET notas = $1
+       WHERE id = $2
+       RETURNING id, notas`,
+      [notas ?? "", id]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ error: "Materia no encontrada" });
+    }
+
+    res.json({
+      mensaje: "Bitácora actualizada correctamente",
+      notas: resultado.rows[0].notas,
     });
+  } catch (error) {
+    console.error("Error al actualizar notas:", error);
+    res.status(500).json({ error: "Error al guardar las notas" });
   }
 });
 
@@ -195,10 +218,7 @@ app.get("/actividades", async (req, res) => {
     res.json(resultado.rows);
   } catch (error) {
     console.error("Error al obtener actividades:", error);
-
-    res.status(500).json({
-      error: "Error al obtener las actividades",
-    });
+    res.status(500).json({ error: "Error al obtener las actividades" });
   }
 });
 
@@ -217,14 +237,8 @@ app.get("/materias/:id/actividades", async (req, res) => {
 
     res.json(resultado.rows);
   } catch (error) {
-    console.error(
-      "Error al obtener actividades de la materia:",
-      error
-    );
-
-    res.status(500).json({
-      error: "Error al obtener las actividades de la materia",
-    });
+    console.error("Error al obtener actividades de la materia:", error);
+    res.status(500).json({ error: "Error al obtener las actividades de la materia" });
   }
 });
 
@@ -251,9 +265,7 @@ app.post("/actividades", async (req, res) => {
     );
 
     if (materiaExiste.rows.length === 0) {
-      return res.status(404).json({
-        error: "La materia indicada no existe",
-      });
+      return res.status(404).json({ error: "La materia indicada no existe" });
     }
 
     const resultado = await pool.query(
@@ -278,10 +290,7 @@ app.post("/actividades", async (req, res) => {
     res.status(201).json(resultado.rows[0]);
   } catch (error) {
     console.error("Error al crear actividad:", error);
-
-    res.status(500).json({
-      error: "Error al crear la actividad",
-    });
+    res.status(500).json({ error: "Error al crear la actividad" });
   }
 });
 
@@ -289,7 +298,6 @@ app.post("/actividades", async (req, res) => {
 app.put("/actividades/:id", async (req, res) => {
   try {
     const { id } = req.params;
-
     const {
       titulo,
       descripcion,
@@ -310,9 +318,7 @@ app.put("/actividades/:id", async (req, res) => {
     );
 
     if (materiaExiste.rows.length === 0) {
-      return res.status(404).json({
-        error: "La materia indicada no existe",
-      });
+      return res.status(404).json({ error: "La materia indicada no existe" });
     }
 
     const resultado = await pool.query(
@@ -335,18 +341,13 @@ app.put("/actividades/:id", async (req, res) => {
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({
-        error: "Actividad no encontrada",
-      });
+      return res.status(404).json({ error: "Actividad no encontrada" });
     }
 
     res.json(resultado.rows[0]);
   } catch (error) {
     console.error("Error al editar actividad:", error);
-
-    res.status(500).json({
-      error: "Error al editar la actividad",
-    });
+    res.status(500).json({ error: "Error al editar la actividad" });
   }
 });
 
@@ -371,21 +372,13 @@ app.patch("/actividades/:id/completada", async (req, res) => {
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({
-        error: "Actividad no encontrada",
-      });
+      return res.status(404).json({ error: "Actividad no encontrada" });
     }
 
     res.json(resultado.rows[0]);
   } catch (error) {
-    console.error(
-      "Error al cambiar estado de actividad:",
-      error
-    );
-
-    res.status(500).json({
-      error: "Error al actualizar la actividad",
-    });
+    console.error("Error al cambiar estado de actividad:", error);
+    res.status(500).json({ error: "Error al actualizar la actividad" });
   }
 });
 
@@ -395,16 +388,12 @@ app.delete("/actividades/:id", async (req, res) => {
     const { id } = req.params;
 
     const resultado = await pool.query(
-      `DELETE FROM actividades
-       WHERE id = $1
-       RETURNING *`,
+      `DELETE FROM actividades WHERE id = $1 RETURNING *`,
       [id]
     );
 
     if (resultado.rows.length === 0) {
-      return res.status(404).json({
-        error: "Actividad no encontrada",
-      });
+      return res.status(404).json({ error: "Actividad no encontrada" });
     }
 
     res.json({
@@ -413,10 +402,7 @@ app.delete("/actividades/:id", async (req, res) => {
     });
   } catch (error) {
     console.error("Error al eliminar actividad:", error);
-
-    res.status(500).json({
-      error: "Error al eliminar la actividad",
-    });
+    res.status(500).json({ error: "Error al eliminar la actividad" });
   }
 });
 
