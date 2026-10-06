@@ -8,6 +8,10 @@ function App() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
 
+  // Estado del formulario colapsable y secuencial
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
+  const [pasoFormulario, setPasoFormulario] = useState(1); // 1: Nombre -> 2: Profesor -> 3: Estado
+
   const [nombre, setNombre] = useState("");
   const [profesor, setProfesor] = useState("");
   const [estado, setEstado] = useState("Cursando");
@@ -25,6 +29,13 @@ function App() {
   const [actividadEditandoId, setActividadEditandoId] = useState(null);
   const [guardandoActividad, setGuardandoActividad] = useState(false);
 
+  // Bitácora Markdown
+  const [materiaBitacora, setMateriaBitacora] = useState(null);
+  const [textoMarkdown, setTextoMarkdown] = useState("");
+  const [guardandoNotas, setGuardandoNotas] = useState(false);
+  const [vistaMarkdown, setVistaMarkdown] = useState("edit");
+  const [mensajeNotas, setMensajeNotas] = useState("");
+
   const [confirmacion, setConfirmacion] = useState(null);
 
   const materiaSeleccionada = materias.find(
@@ -34,13 +45,8 @@ function App() {
   const cargarMaterias = async () => {
     try {
       setError("");
-
       const respuesta = await fetch(`${API}/materias`);
-
-      if (!respuesta.ok) {
-        throw new Error();
-      }
-
+      if (!respuesta.ok) throw new Error();
       const datos = await respuesta.json();
       setMaterias(datos);
 
@@ -51,9 +57,9 @@ function App() {
         setMateriaSeleccionadaId(null);
         setActividades([]);
       }
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las materias");
+    } catch (err) {
+      console.error(err);
+      setError("Error de sincronización con la base de datos.");
     } finally {
       setCargando(false);
     }
@@ -63,20 +69,13 @@ function App() {
     try {
       setCargandoActividades(true);
       setError("");
-
-      const respuesta = await fetch(
-        `${API}/materias/${materiaId}/actividades`
-      );
-
-      if (!respuesta.ok) {
-        throw new Error();
-      }
-
+      const respuesta = await fetch(`${API}/materias/${materiaId}/actividades`);
+      if (!respuesta.ok) throw new Error();
       const datos = await respuesta.json();
       setActividades(datos);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudieron cargar las actividades");
+    } catch (err) {
+      console.error(err);
+      setError("No se pudieron cargar los registros de actividades.");
     } finally {
       setCargandoActividades(false);
     }
@@ -94,20 +93,86 @@ function App() {
     }
   }, [materiaSeleccionadaId]);
 
+  const obtenerFechaHoyFormateada = () => {
+    return new Date().toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      timeZone: "America/Argentina/Cordoba",
+    });
+  };
+
+  const abrirBitacora = async (materia) => {
+    setMateriaBitacora(materia);
+    setMensajeNotas("Cargando bitácora...");
+    try {
+      const res = await fetch(`${API}/materias/${materia.id}/notas`);
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      let contenido = data.notas || "";
+
+      const fechaHoy = obtenerFechaHoyFormateada();
+      const separadorHoy = `--- [ ${fechaHoy} ] ---`;
+
+      if (contenido.trim() && !contenido.includes(separadorHoy)) {
+        contenido = `${contenido.trimEnd()}\n\n${separadorHoy}\n\n`;
+      } else if (!contenido.trim()) {
+        contenido = `${separadorHoy}\n\n`;
+      }
+
+      setTextoMarkdown(contenido);
+      setMensajeNotas("");
+    } catch (err) {
+      console.error(err);
+      setMensajeNotas("Error al cargar notas previas.");
+    }
+  };
+
+  const insertarEntradaHoy = () => {
+    const fechaHoy = obtenerFechaHoyFormateada();
+    const separadorHoy = `--- [ ${fechaHoy} ] ---`;
+    if (textoMarkdown.includes(separadorHoy)) {
+      setMensajeNotas("FECHA YA PRESENTE");
+      setTimeout(() => setMensajeNotas(""), 1500);
+      return;
+    }
+    setTextoMarkdown((prev) => `${prev.trimEnd()}\n\n${separadorHoy}\n\n`);
+  };
+
+  const guardarBitacora = async () => {
+    if (!materiaBitacora) return;
+    try {
+      setGuardandoNotas(true);
+      setMensajeNotas("Guardando...");
+      const res = await fetch(`${API}/materias/${materiaBitacora.id}/notas`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ notas: textoMarkdown }),
+      });
+      if (!res.ok) throw new Error();
+      setMensajeNotas("SINCRONIZADO OK");
+      setTimeout(() => setMensajeNotas(""), 2000);
+    } catch (err) {
+      console.error(err);
+      setMensajeNotas("Error al guardar bitácora.");
+    } finally {
+      setGuardandoNotas(false);
+    }
+  };
+
   const limpiarFormularioMateria = () => {
     setNombre("");
     setProfesor("");
     setEstado("Cursando");
     setMateriaEditandoId(null);
+    setPasoFormulario(1);
+    setMostrarFormulario(false);
   };
 
   const guardarMateria = async (evento) => {
-    evento.preventDefault();
-
+    if (evento) evento.preventDefault();
     if (!nombre.trim() || !profesor.trim() || !estado) {
-      setError(
-        "Completá nombre, profesor y estado antes de guardar la materia"
-      );
+      setError("Completa nombre, cátedra y estado.");
       return;
     }
 
@@ -122,37 +187,27 @@ function App() {
       };
 
       let respuesta;
-
       if (materiaEditandoId !== null) {
-        respuesta = await fetch(
-          `${API}/materias/${materiaEditandoId}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(datosMateria),
-          }
-        );
+        respuesta = await fetch(`${API}/materias/${materiaEditandoId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datosMateria),
+        });
       } else {
         respuesta = await fetch(`${API}/materias`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datosMateria),
         });
       }
 
-      if (!respuesta.ok) {
-        throw new Error();
-      }
+      if (!respuesta.ok) throw new Error();
 
       limpiarFormularioMateria();
       await cargarMaterias();
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo guardar la materia");
+    } catch (err) {
+      console.error(err);
+      setError("Fallo al registrar la materia.");
     } finally {
       setGuardandoMateria(false);
     }
@@ -163,48 +218,43 @@ function App() {
     setNombre(materia.nombre);
     setProfesor(materia.profesor || "");
     setEstado(materia.estado);
+    setPasoFormulario(3);
+    setMostrarFormulario(true);
     setError("");
-
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth",
-    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const solicitarEliminarMateria = (materia) => {
     setConfirmacion({
       tipo: "materia",
       id: materia.id,
-      titulo: "Eliminar materia",
-      mensaje: `¿Seguro que querés eliminar "${materia.nombre}"? También se eliminarán todas sus actividades.`,
+      titulo: "Purgar materia",
+      mensaje: `¿Deseas purgar permanentemente "${materia.nombre}" y todos sus hitos asociados?`,
     });
   };
 
   const eliminarMateria = async (id) => {
     try {
       setError("");
-
       const respuesta = await fetch(`${API}/materias/${id}`, {
         method: "DELETE",
       });
-
-      if (!respuesta.ok) {
-        throw new Error();
-      }
+      if (!respuesta.ok) throw new Error();
 
       if (materiaSeleccionadaId === id) {
         setMateriaSeleccionadaId(null);
         setActividades([]);
       }
-
+      if (materiaBitacora?.id === id) {
+        setMateriaBitacora(null);
+      }
       if (materiaEditandoId === id) {
         limpiarFormularioMateria();
       }
-
       await cargarMaterias();
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo eliminar la materia");
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo purgar la materia.");
     }
   };
 
@@ -223,16 +273,12 @@ function App() {
 
   const guardarActividad = async (evento) => {
     evento.preventDefault();
-
     if (!materiaSeleccionadaId) {
-      setError("Seleccioná una materia");
+      setError("Selecciona una materia primero.");
       return;
     }
-
     if (!tituloActividad.trim() || !fechaActividad) {
-      setError(
-        "Completá el título y la fecha antes de guardar la actividad"
-      );
+      setError("Indica el título de la actividad y su fecha límite.");
       return;
     }
 
@@ -246,45 +292,33 @@ function App() {
         fecha_entrega: fechaActividad,
         completada:
           actividadEditandoId !== null
-            ? actividades.find(
-                (actividad) => actividad.id === actividadEditandoId
-              )?.completada ?? false
+            ? actividades.find((a) => a.id === actividadEditandoId)?.completada ?? false
             : false,
         materia_id: materiaSeleccionadaId,
       };
 
       let respuesta;
-
       if (actividadEditandoId !== null) {
-        respuesta = await fetch(
-          `${API}/actividades/${actividadEditandoId}`,
-          {
-            method: "PUT",
-            headers: {
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify(datosActividad),
-          }
-        );
+        respuesta = await fetch(`${API}/actividades/${actividadEditandoId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(datosActividad),
+        });
       } else {
         respuesta = await fetch(`${API}/actividades`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(datosActividad),
         });
       }
 
-      if (!respuesta.ok) {
-        throw new Error();
-      }
+      if (!respuesta.ok) throw new Error();
 
       limpiarFormularioActividad();
       await cargarActividades(materiaSeleccionadaId);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo guardar la actividad");
+    } catch (err) {
+      console.error(err);
+      setError("Error al registrar la actividad.");
     } finally {
       setGuardandoActividad(false);
     }
@@ -295,9 +329,7 @@ function App() {
     setTituloActividad(actividad.titulo);
     setDescripcionActividad(actividad.descripcion || "");
     setFechaActividad(
-      actividad.fecha_entrega
-        ? actividad.fecha_entrega.substring(0, 10)
-        : ""
+      actividad.fecha_entrega ? actividad.fecha_entrega.substring(0, 10) : ""
     );
     setError("");
   };
@@ -305,28 +337,19 @@ function App() {
   const cambiarCompletada = async (actividad) => {
     try {
       setError("");
-
       const respuesta = await fetch(
         `${API}/actividades/${actividad.id}/completada`,
         {
           method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            completada: !actividad.completada,
-          }),
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ completada: !actividad.completada }),
         }
       );
-
-      if (!respuesta.ok) {
-        throw new Error();
-      }
-
+      if (!respuesta.ok) throw new Error();
       await cargarActividades(materiaSeleccionadaId);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo actualizar la actividad");
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo actualizar el estado.");
     }
   };
 
@@ -335,56 +358,39 @@ function App() {
       tipo: "actividad",
       id: actividad.id,
       titulo: "Eliminar actividad",
-      mensaje: `¿Seguro que querés eliminar "${actividad.titulo}"?`,
+      mensaje: `¿Deseas remover la actividad "${actividad.titulo}"?`,
     });
   };
 
   const eliminarActividad = async (id) => {
     try {
       setError("");
-
       const respuesta = await fetch(`${API}/actividades/${id}`, {
         method: "DELETE",
       });
-
-      if (!respuesta.ok) {
-        throw new Error();
-      }
+      if (!respuesta.ok) throw new Error();
 
       if (actividadEditandoId === id) {
         limpiarFormularioActividad();
       }
-
       await cargarActividades(materiaSeleccionadaId);
-    } catch (error) {
-      console.error(error);
-      setError("No se pudo eliminar la actividad");
+    } catch (err) {
+      console.error(err);
+      setError("No se pudo eliminar la actividad.");
     }
   };
 
   const confirmarEliminacion = async () => {
-    if (!confirmacion) {
-      return;
-    }
-
+    if (!confirmacion) return;
     const { tipo, id } = confirmacion;
-
     setConfirmacion(null);
 
-    if (tipo === "materia") {
-      await eliminarMateria(id);
-    }
-
-    if (tipo === "actividad") {
-      await eliminarActividad(id);
-    }
+    if (tipo === "materia") await eliminarMateria(id);
+    if (tipo === "actividad") await eliminarActividad(id);
   };
 
   const formatearFecha = (fecha) => {
-    if (!fecha) {
-      return "Sin fecha";
-    }
-
+    if (!fecha) return "SIN PLAZO";
     return new Date(fecha).toLocaleDateString("es-AR", {
       day: "2-digit",
       month: "2-digit",
@@ -393,350 +399,492 @@ function App() {
     });
   };
 
-  const actividadesCompletadas = actividades.filter(
-    (actividad) => actividad.completada
-  ).length;
+  const renderSimpleMarkdown = (md) => {
+    if (!md.trim()) return <p className="text-dim">// BITÁCORA VACÍA</p>;
+    return md.split("\n").map((line, i) => {
+      if (line.startsWith("--- [ ") && line.endsWith(" ] ---")) {
+        const fecha = line.replace("--- [ ", "").replace(" ] ---", "");
+        return (
+          <div key={i} className="md-date-divider font-mono">
+            <span className="divider-line"></span>
+            <span className="divider-stamp">JORNADA // {fecha}</span>
+            <span className="divider-line"></span>
+          </div>
+        );
+      }
+      if (line.startsWith("### ")) return <h5 key={i} className="md-h3">{line.replace("### ", "")}</h5>;
+      if (line.startsWith("## ")) return <h4 key={i} className="md-h2">{line.replace("## ", "")}</h4>;
+      if (line.startsWith("# ")) return <h3 key={i} className="md-h1">{line.replace("# ", "")}</h3>;
+      if (line.startsWith("- [x] ")) return <div key={i} className="md-todo done">✓ {line.replace("- [x] ", "")}</div>;
+      if (line.startsWith("- [ ] ")) return <div key={i} className="md-todo">☐ {line.replace("- [ ] ", "")}</div>;
+      if (line.startsWith("- ") || line.startsWith("* ")) return <li key={i} className="md-bullet">{line.replace(/^[-*]\s/, "")}</li>;
+      if (line.startsWith("```")) return <pre key={i} className="md-codeblock">{line.replace(/```/g, "")}</pre>;
+      if (!line.trim()) return <br key={i} />;
+      return <p key={i} className="md-p">{line}</p>;
+    });
+  };
+
+  const actividadesCompletadas = actividades.filter((a) => a.completada).length;
 
   return (
-    <main className="app">
-      <header className="encabezado">
-        <p className="eyebrow">Gestor académico</p>
-        <h1>Mis materias</h1>
-        <p className="subtitulo">
-          Organizá tus materias y actividades desde un solo lugar.
-        </p>
+    <main className="terminal-app">
+      {/* HEADER */}
+      <header className="terminal-header">
+        <div>
+          <span className="terminal-tag font-mono">// ARCHIVO ACADÉMICO REG-2026</span>
+          <h1 className="terminal-title font-display">
+            Materias<span className="dot-neon">.</span>
+          </h1>
+        </div>
+        <div className="terminal-counter font-mono">
+          <span className="status-live"></span>
+          <span>CURSADAS ACTIVAS: {String(materias.length).padStart(2, "0")}</span>
+        </div>
       </header>
 
-      {error && <div className="mensaje-error">{error}</div>}
+      {error && <div className="terminal-alert font-mono">{error}</div>}
 
-      <section className="panel-formulario">
-        <div className="panel-titulo">
-          <h2>
-            {materiaEditandoId !== null
-              ? "Editar materia"
-              : "Nueva materia"}
-          </h2>
-
-          <p>
-            {materiaEditandoId !== null
-              ? "Modificá los datos de la materia seleccionada."
-              : "Agregá una materia para comenzar a organizar sus actividades."}
-          </p>
-        </div>
-
-        <form className="formulario-materia" onSubmit={guardarMateria}>
-          <div className="campo">
-            <label htmlFor="nombre">Nombre</label>
-            <input
-              id="nombre"
-              type="text"
-              placeholder="Ej: Arquitectura de Software"
-              value={nombre}
-              onChange={(evento) => setNombre(evento.target.value)}
-            />
-          </div>
-
-          <div className="campo">
-            <label htmlFor="profesor">Profesor</label>
-            <input
-              id="profesor"
-              type="text"
-              placeholder="Ej: Juan Pérez"
-              value={profesor}
-              onChange={(evento) => setProfesor(evento.target.value)}
-            />
-          </div>
-
-          <div className="campo">
-            <label htmlFor="estado">Estado</label>
-            <select
-              id="estado"
-              value={estado}
-              onChange={(evento) => setEstado(evento.target.value)}
-            >
-              <option value="Cursando">Cursando</option>
-              <option value="Pendiente">Pendiente</option>
-              <option value="Aprobada">Aprobada</option>
-            </select>
-          </div>
-
-          <div className="acciones-formulario">
-            <button
-              className="boton-principal"
-              type="submit"
-              disabled={guardandoMateria}
-            >
-              {guardandoMateria
-                ? "Guardando..."
-                : materiaEditandoId !== null
-                ? "Guardar cambios"
-                : "Agregar materia"}
-            </button>
-
-            {materiaEditandoId !== null && (
+      {/* DISPARADOR MINIMALISTA / FORMULARIO PROGRESIVO */}
+      <section className="terminal-action-dock">
+        {!mostrarFormulario ? (
+          <button
+            type="button"
+            className="btn-trigger font-mono"
+            onClick={() => {
+              limpiarFormularioMateria();
+              setMostrarFormulario(true);
+            }}
+          >
+            <span className="trigger-icon">+</span>
+            <span className="trigger-text">REGISTRAR NUEVA MATERIA</span>
+          </button>
+        ) : (
+          <div className="progressive-form-box">
+            <div className="progressive-topline font-mono">
+              <span>{materiaEditandoId !== null ? "[ EDITANDO REGISTRO ]" : "[ NUEVA ENTRADA ]"}</span>
               <button
-                className="boton-secundario"
                 type="button"
+                className="btn-link"
                 onClick={() => {
                   limpiarFormularioMateria();
                   setError("");
                 }}
               >
-                Cancelar
+                [ CERRAR ✕ ]
               </button>
-            )}
-          </div>
-        </form>
-      </section>
+            </div>
 
-      <section className="contenido">
-        <div className="seccion-titulo">
-          <h2>Materias cargadas</h2>
+            <form onSubmit={guardarMateria} className="prose-form font-display">
+              {/* PASO 1: NOMBRE */}
+              <span className="fade-item">
+                <span>Inscribir </span>
+                <span className="prose-wrapper">
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Nombre de materia..."
+                    value={nombre}
+                    onChange={(e) => setNombre(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && nombre.trim() && pasoFormulario === 1) {
+                        e.preventDefault();
+                        setPasoFormulario(2);
+                      }
+                    }}
+                    className="prose-input"
+                  />
+                </span>
+              </span>
 
-          <span className="contador">
-            {materias.length}{" "}
-            {materias.length === 1 ? "materia" : "materias"}
-          </span>
-        </div>
+              {/* PASO 2: PROFESOR */}
+              {(pasoFormulario >= 2 || materiaEditandoId !== null) && (
+                <span className="fade-item">
+                  <span> a cargo de </span>
+                  <span className="prose-wrapper">
+                    <input
+                      type="text"
+                      autoFocus={pasoFormulario === 2}
+                      placeholder="Profesor / Cátedra..."
+                      value={profesor}
+                      onChange={(e) => setProfesor(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" && profesor.trim() && pasoFormulario === 2) {
+                          e.preventDefault();
+                          setPasoFormulario(3);
+                        }
+                      }}
+                      className="prose-input"
+                    />
+                  </span>
+                </span>
+              )}
 
-        {cargando && <p>Cargando materias...</p>}
+              {/* PASO 3: ESTADO */}
+              {(pasoFormulario >= 3 || materiaEditandoId !== null) && (
+                <span className="fade-item">
+                  <span> en estado </span>
+                  <span className="prose-wrapper">
+                    <select
+                      value={estado}
+                      onChange={(e) => setEstado(e.target.value)}
+                      className="prose-select font-mono"
+                    >
+                      <option value="Cursando">Cursando</option>
+                      <option value="Pendiente">Pendiente</option>
+                      <option value="Aprobada">Aprobada</option>
+                    </select>
+                  </span>
+                  <span>.</span>
+                </span>
+              )}
 
-        {!cargando && materias.length === 0 && (
-          <div className="estado-vacio">
-            Todavía no cargaste ninguna materia.
+              <div className="prose-actions font-mono">
+                {pasoFormulario < 3 && materiaEditandoId === null ? (
+                  <button
+                    type="button"
+                    className="btn-brutal-solid"
+                    disabled={pasoFormulario === 1 ? !nombre.trim() : !profesor.trim()}
+                    onClick={() => setPasoFormulario((prev) => prev + 1)}
+                  >
+                    <span>CONTINUAR</span>
+                    <span>→</span>
+                  </button>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={guardandoMateria}
+                    className="btn-brutal-solid"
+                  >
+                    <span>{guardandoMateria ? "GUARDANDO..." : materiaEditandoId !== null ? "ACTUALIZAR" : "CONFIRMAR REGISTRO"}</span>
+                    <span>→</span>
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  className="btn-brutal-outline"
+                  onClick={() => {
+                    limpiarFormularioMateria();
+                    setError("");
+                  }}
+                >
+                  CANCELAR
+                </button>
+              </div>
+            </form>
           </div>
         )}
+      </section>
 
-        <div className="grid-materias">
-          {materias.map((materia) => {
-            const seleccionada =
-              materia.id === materiaSeleccionadaId;
+      {/* ÍNDICE GENERAL */}
+      <section className="terminal-index-block">
+        <div className="index-topline font-mono">
+          <span>01 // ÍNDICE GENERAL</span>
+          <span>OPERACIONES</span>
+        </div>
+
+        {cargando && <p className="font-mono text-dim">RECUPERANDO REGISTROS...</p>}
+
+        {!cargando && materias.length === 0 && (
+          <div className="terminal-empty font-mono">NO HAY MATERIAS CARGADAS AÚN</div>
+        )}
+
+        <div className="index-list">
+          {materias.map((materia, index) => {
+            const seleccionada = materia.id === materiaSeleccionadaId;
+            const idx = String(index + 1).padStart(2, "0");
 
             return (
-              <article
-                className={`tarjeta-materia ${
-                  seleccionada ? "seleccionada" : ""
-                }`}
+              <div
                 key={materia.id}
+                className={`index-item ${seleccionada ? "item-selected" : ""}`}
               >
-                <button
-                  className="area-materia"
-                  type="button"
+                <div
+                  className="item-click-area"
                   onClick={() => seleccionarMateria(materia.id)}
+                  role="button"
+                  tabIndex={0}
                 >
+                  <span className="item-num font-mono">{idx}</span>
                   <div>
-                    <h3>{materia.nombre}</h3>
-                    <p>
-                      <strong>Profesor:</strong> {materia.profesor}
-                    </p>
+                    <h3 className="item-title font-display">{materia.nombre}</h3>
+                    <div className="item-details font-mono">
+                      <span>CÁTEDRA: {materia.profesor}</span>
+                      <span className="sep">•</span>
+                      <span className="item-status">[ {materia.estado} ]</span>
+                    </div>
                   </div>
+                </div>
 
-                  <span className="estado">{materia.estado}</span>
-                </button>
-
-                <div className="acciones-materia">
+                <div className="item-ops font-mono">
                   <button
-                    className="boton-editar"
                     type="button"
+                    className="btn-link glow"
+                    onClick={() => abrirBitacora(materia)}
+                  >
+                    [ BITÁCORA MD ]
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-link"
                     onClick={() => comenzarEdicionMateria(materia)}
                   >
-                    Editar
+                    [ EDITAR ]
                   </button>
-
                   <button
-                    className="boton-eliminar"
                     type="button"
+                    className="btn-link danger"
                     onClick={() => solicitarEliminarMateria(materia)}
                   >
-                    Eliminar
+                    [ PURGAR ]
                   </button>
                 </div>
-              </article>
+              </div>
             );
           })}
         </div>
       </section>
 
+      {/* ACTIVIDADES */}
       {materiaSeleccionada && (
-        <section className="panel-actividades">
-          <div className="cabecera-actividades">
+        <section className="activities-panel">
+          <div className="activities-header">
             <div>
-              <p className="eyebrow">Actividades</p>
-              <h2>{materiaSeleccionada.nombre}</h2>
-              <p>
-                {actividadesCompletadas} de {actividades.length} completadas
-              </p>
+              <span className="terminal-tag font-mono">// HOJA DE CURSADA</span>
+              <h2 className="activities-title font-display">{materiaSeleccionada.nombre}</h2>
+              <div className="activities-stats font-mono">
+                COMPLETADAS: <strong className="neon-text">{actividadesCompletadas}</strong> / {actividades.length}
+              </div>
             </div>
 
             <button
-              className="boton-secundario"
               type="button"
+              className="btn-brutal-outline font-mono"
               onClick={() => setMateriaSeleccionadaId(null)}
             >
-              Cerrar
+              CERRAR [ESC]
             </button>
           </div>
 
-          <form className="formulario-actividad" onSubmit={guardarActividad}>
-            <div className="campo">
-              <label htmlFor="tituloActividad">Actividad</label>
+          <form onSubmit={guardarActividad} className="activities-form font-mono">
+            <div className="field-group">
+              <label htmlFor="act-titulo">ACTIVIDAD / ENTREGA</label>
               <input
-                id="tituloActividad"
+                id="act-titulo"
                 type="text"
-                placeholder="Ej: Parcial 1"
+                placeholder="Ej: Entrega TP N° 1"
                 value={tituloActividad}
-                onChange={(evento) =>
-                  setTituloActividad(evento.target.value)
-                }
+                onChange={(e) => setTituloActividad(e.target.value)}
+                className="clean-input"
               />
             </div>
 
-            <div className="campo">
-              <label htmlFor="fechaActividad">Fecha</label>
+            <div className="field-group">
+              <label htmlFor="act-fecha">FECHA LÍMITE</label>
               <input
-                id="fechaActividad"
+                id="act-fecha"
                 type="date"
                 value={fechaActividad}
-                onChange={(evento) =>
-                  setFechaActividad(evento.target.value)
-                }
+                onChange={(e) => setFechaActividad(e.target.value)}
+                className="clean-input date-input"
               />
             </div>
 
-            <div className="campo descripcion">
-              <label htmlFor="descripcionActividad">Descripción</label>
+            <div className="field-group">
+              <label htmlFor="act-desc">NOTAS / CONSIGNAS</label>
               <input
-                id="descripcionActividad"
+                id="act-desc"
                 type="text"
-                placeholder="Opcional"
+                placeholder="Opcional..."
                 value={descripcionActividad}
-                onChange={(evento) =>
-                  setDescripcionActividad(evento.target.value)
-                }
+                onChange={(e) => setDescripcionActividad(e.target.value)}
+                className="clean-input"
               />
             </div>
 
-            <div className="acciones-formulario">
+            <div className="form-submit-row">
               <button
-                className="boton-principal"
                 type="submit"
                 disabled={guardandoActividad}
+                className="btn-brutal-solid"
               >
-                {guardandoActividad
-                  ? "Guardando..."
-                  : actividadEditandoId !== null
-                  ? "Guardar cambios"
-                  : "Agregar actividad"}
+                <span>{guardandoActividad ? "..." : actividadEditandoId !== null ? "ACTUALIZAR" : "+ REGISTRAR"}</span>
               </button>
 
               {actividadEditandoId !== null && (
                 <button
-                  className="boton-secundario"
                   type="button"
+                  className="btn-brutal-outline"
                   onClick={limpiarFormularioActividad}
                 >
-                  Cancelar
+                  CANCELAR
                 </button>
               )}
             </div>
           </form>
 
-          <div className="lista-actividades">
-            {cargandoActividades && <p>Cargando actividades...</p>}
+          <div className="activities-list">
+            {cargandoActividades && (
+              <p className="font-mono text-dim">RECUPERANDO ACTIVIDADES...</p>
+            )}
 
             {!cargandoActividades && actividades.length === 0 && (
-              <div className="estado-vacio">
-                Esta materia todavía no tiene actividades.
+              <div className="terminal-empty font-mono">
+                NO HAY ACTIVIDADES REGISTRADAS EN ESTA MATERIA
               </div>
             )}
 
             {actividades.map((actividad) => (
-              <article
-                className={`actividad ${
-                  actividad.completada
-                    ? "actividad-completada"
-                    : ""
-                }`}
+              <div
                 key={actividad.id}
+                className={`activity-row ${actividad.completada ? "act-done" : ""}`}
               >
                 <button
-                  className="check-actividad"
                   type="button"
+                  className="box-check font-mono"
                   onClick={() => cambiarCompletada(actividad)}
+                  title="Marcar estado"
                 >
-                  {actividad.completada ? "✓" : ""}
+                  {actividad.completada ? "X" : ""}
                 </button>
 
-                <div className="actividad-contenido">
-                  <div className="actividad-principal">
-                    <h3>{actividad.titulo}</h3>
-
-                    <span className="fecha">
-                      {formatearFecha(actividad.fecha_entrega)}
+                <div className="act-data">
+                  <div className="act-line">
+                    <span className="act-name font-mono">{actividad.titulo}</span>
+                    <span className="act-date font-mono">
+                      [ {formatearFecha(actividad.fecha_entrega)} ]
                     </span>
                   </div>
-
                   {actividad.descripcion && (
-                    <p>{actividad.descripcion}</p>
+                    <p className="act-desc font-mono">{actividad.descripcion}</p>
                   )}
                 </div>
 
-                <div className="actividad-acciones">
+                <div className="item-ops font-mono">
                   <button
-                    className="boton-editar"
                     type="button"
-                    onClick={() =>
-                      comenzarEdicionActividad(actividad)
-                    }
+                    className="btn-link"
+                    onClick={() => comenzarEdicionActividad(actividad)}
                   >
-                    Editar
+                    [ EDITAR ]
                   </button>
-
                   <button
-                    className="boton-eliminar"
                     type="button"
-                    onClick={() =>
-                      solicitarEliminarActividad(actividad)
-                    }
+                    className="btn-link danger"
+                    onClick={() => solicitarEliminarActividad(actividad)}
                   >
-                    Eliminar
+                    [ PURGAR ]
                   </button>
                 </div>
-              </article>
+              </div>
             ))}
           </div>
         </section>
       )}
 
-      {confirmacion && (
-        <div
-          className="modal-fondo"
-          onClick={() => setConfirmacion(null)}
-        >
-          <div
-            className="modal"
-            onClick={(evento) => evento.stopPropagation()}
-          >
-            <div className="modal-icono">!</div>
-
-            <h2>{confirmacion.titulo}</h2>
-            <p>{confirmacion.mensaje}</p>
-
-            <div className="modal-acciones">
+      {/* LIBRETA A5 BITÁCORA CENTRALIZADA */}
+      {materiaBitacora && (
+        <aside className="drawer-overlay" onClick={() => setMateriaBitacora(null)}>
+          <div className="drawer-panel" onClick={(e) => e.stopPropagation()}>
+            <div className="drawer-header">
+              <div>
+                <span className="terminal-tag font-mono">// LIBRETA A5 .MD</span>
+                <h3 className="drawer-title font-display">{materiaBitacora.nombre}</h3>
+              </div>
               <button
-                className="boton-secundario"
                 type="button"
+                className="btn-link"
+                onClick={() => setMateriaBitacora(null)}
+              >
+                [ CERRAR ✕ ]
+              </button>
+            </div>
+
+            <div className="drawer-toolbar font-mono">
+              <div className="tab-group">
+                <button
+                  type="button"
+                  className={`tab-btn ${vistaMarkdown === "edit" ? "active" : ""}`}
+                  onClick={() => setVistaMarkdown("edit")}
+                >
+                  EDITAR (.MD)
+                </button>
+                <button
+                  type="button"
+                  className={`tab-btn ${vistaMarkdown === "preview" ? "active" : ""}`}
+                  onClick={() => setVistaMarkdown("preview")}
+                >
+                  PREVISUALIZAR
+                </button>
+                <button
+                  type="button"
+                  className="tab-btn date-stamp-btn"
+                  onClick={insertarEntradaHoy}
+                  title="Estampar la jornada de hoy"
+                >
+                  + JORNADA DE HOY
+                </button>
+              </div>
+
+              <div className="drawer-status">
+                {mensajeNotas && <span className="status-badge font-mono">{mensajeNotas}</span>}
+                <button
+                  type="button"
+                  className="btn-brutal-solid"
+                  onClick={guardarBitacora}
+                  disabled={guardandoNotas}
+                >
+                  {guardandoNotas ? "GUARDANDO..." : "GUARDAR [CTRL+S]"}
+                </button>
+              </div>
+            </div>
+
+            <div className="drawer-body">
+              {vistaMarkdown === "edit" ? (
+                <textarea
+                  className="md-editor font-mono"
+                  placeholder="Escribe tus notas aquí..."
+                  value={textoMarkdown}
+                  onChange={(e) => setTextoMarkdown(e.target.value)}
+                  onKeyDown={(e) => {
+                    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+                      e.preventDefault();
+                      guardarBitacora();
+                    }
+                  }}
+                />
+              ) : (
+                <div className="md-preview font-mono">
+                  {renderSimpleMarkdown(textoMarkdown)}
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+      )}
+
+      {/* MODAL DEPURACIÓN */}
+      {confirmacion && (
+        <div className="modal-backdrop" onClick={() => setConfirmacion(null)}>
+          <div className="modal-box font-mono" onClick={(e) => e.stopPropagation()}>
+            <span className="danger-tag">// ACCIÓN DESTRUCTIVA</span>
+            <h2 className="modal-title font-display">{confirmacion.titulo}</h2>
+            <p className="modal-text">{confirmacion.mensaje}</p>
+
+            <div className="modal-btns">
+              <button
+                type="button"
+                className="btn-brutal-outline"
                 onClick={() => setConfirmacion(null)}
               >
-                Cancelar
+                CANCELAR
               </button>
-
               <button
-                className="boton-confirmar-eliminar"
                 type="button"
+                className="btn-danger-solid"
                 onClick={confirmarEliminacion}
               >
-                Eliminar
+                PURGAR DEFINITIVAMENTE
               </button>
             </div>
           </div>
