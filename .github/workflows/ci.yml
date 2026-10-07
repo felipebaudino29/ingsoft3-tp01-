@@ -31,6 +31,52 @@ jobs:
           cache-from: type=gha,scope=backend
           cache-to: type=gha,mode=max,scope=backend
 
+      - name: Construir etapa de tests del backend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          target: test
+          load: true
+          push: false
+          tags: backend-test:ci
+          cache-from: type=gha,scope=backend-test
+          cache-to: type=gha,mode=max,scope=backend-test
+
+      - name: Correr tests del backend con coverage
+        run: |
+          docker run --rm \
+            -v "${{ github.workspace }}/backend-coverage:/out" \
+            backend-test:ci
+
+      - name: Resumen del coverage del backend
+        if: ${{ !cancelled() }}
+        run: |
+          F=backend-coverage/coverage-summary.json
+          node -e "
+            const fs = require('fs');
+            const file = '$F';
+            if (!fs.existsSync(file)) {
+              console.log('### Coverage del Backend');
+              console.log('No se encontró archivo coverage-summary.json. Revisar ejecución.');
+              process.exit(0);
+            }
+            const t = JSON.parse(fs.readFileSync(file, 'utf8')).total;
+            console.log('### Coverage del Backend');
+            console.log('| Métrica | Porcentaje |');
+            console.log('|---|---|');
+            console.log('| Líneas | ' + t.lines.pct + '% |');
+            console.log('| Ramas | ' + t.branches.pct + '% |');
+            console.log('| Funciones | ' + t.functions.pct + '% |');
+            console.log('| Sentencias | ' + t.statements.pct + '% |');
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Publicar artefacto de coverage del backend
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-backend
+          path: backend-coverage
+
   build-frontend:
     runs-on: ubuntu-latest
 
@@ -54,3 +100,45 @@ jobs:
           tags: frontend:ci
           cache-from: type=gha,scope=frontend
           cache-to: type=gha,mode=max,scope=frontend
+
+      - name: Construir etapa de tests del frontend
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          target: test
+          load: true
+          push: false
+          tags: frontend-test:ci
+          cache-from: type=gha,scope=frontend-test
+          cache-to: type=gha,mode=max,scope=frontend-test
+
+      - name: Correr tests del frontend con coverage
+        run: |
+          docker run --rm \
+            -e COVERAGE_DIR=/salida/reporte \
+            -v "${{ github.workspace }}/frontend-coverage:/salida" \
+            frontend-test:ci
+
+      - name: Resumen del coverage del frontend
+        if: ${{ !cancelled() }}
+        run: |
+          F=frontend-coverage/reporte/coverage-summary.json
+          test -f "$F"
+          node -e "
+            const t = require('./$F').total;
+            if (!t.lines.total) { console.error('Midió 0 archivos: revisar el include'); process.exit(1); }
+            const f = (m) => '| ' + m + ' | ' + t[m].pct + '% |';
+            console.log('### Coverage del Frontend');
+            console.log('| Métrica | Porcentaje |');
+            console.log('|---|---|');
+            console.log(f('lines'));
+            console.log(f('branches'));
+            console.log(f('functions'));
+          " >> $GITHUB_STEP_SUMMARY
+
+      - name: Publicar artefacto de coverage del frontend
+        uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage-frontend
+          path: frontend-coverage
