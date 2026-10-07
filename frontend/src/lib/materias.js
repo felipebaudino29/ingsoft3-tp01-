@@ -31,3 +31,23 @@ export async function obtenerCursadasActivas(clienteFetch) {
   const datos = await respuesta.json();
   return datos.filter((m) => m.estado === 'Cursando');
 }
+
+// Agregado al final de frontend/src/lib/materias.js SIN tests:
+export function calcularPrioridadMateria(materia, diasRestantes) {
+  if (!materia || !materia.nombre) {
+    return 'sin-datos';
+  }
+  if (typeof diasRestantes !== 'number') {
+    return 'desconocida';
+  }
+  if (diasRestantes <= 2) {
+    return 'urgente';
+  }
+  if (diasRestantes <= 7) {
+    return 'alta';
+  }
+  if (diasRestantes <= 15) {
+    return 'media';
+  }
+  return 'baja';
+}
