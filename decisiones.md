@@ -877,3 +877,22 @@ La configuracion y las acciones fueron ejecutadas manualmente sobre el repositor
 Cada resultado fue verificado mediante los logs de GitHub Actions, los estados de los jobs, los Pull Requests, las reglas de proteccion de `main` y los comandos de Git.
 
 En particular, se verifico manualmente que backend y frontend pudieran construirse mediante sus Dockerfiles, que el cache reutilizara capas en ejecuciones posteriores, que un fallo intencional bloqueara el merge, que la correccion volviera a habilitarlo y que el badge reflejara el estado del pipeline.
+
+
+
+## 5. Testing-Calidad
+
+
+## Tarea 3 — Evidencia de Quality Gate y Bloqueo de Integración (§3.5)
+
+### 1. Primer Pull Request: Ciclo Rojo -> Fix -> Verde -> Merged
+- **Pull Request #23**: https://github.com/felipebaudino29/ingsoft3-tp01-/pull/23
+- **Corrida fallida en Actions**: https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/37703698977
+- **Diagnóstico del fallo**: El job `build-frontend` falló en la verificación de cobertura de líneas, alcanzando un **57.14%** frente al umbral obligatorio del **70%** (`ERROR: Coverage for lines (57.14%) does not meet global threshold (70%)`). Todos los tests existentes pasaron (8 passed), demostrando que el bloqueo operó estrictamente como barrera de calidad.
+- **Resolución**: Se incorporó la suite de pruebas unitarias para `calcularPrioridadMateria` en `materias.test.js`, cubriendo todas las ramas de decisión. La métrica superó el umbral, el check pasó a verde y el PR fue integrado a `main`.
+
+### 2. Segundo Pull Request: Calidad Bloqueada Activa (Evidencia para Defensa)
+- **Pull Request #24**: https://github.com/felipebaudino29/ingsoft3-tp01-/pull/24
+- **Corrida fallida en Actions**: https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/37798537243
+- **Estado**: Abierto y bloqueado intencionalmente.
+- **Propósito**: Demostrar en vivo ante la cátedra la acción preventiva del Quality Gate ante la incorporación de código nuevo (`clasificarCargaHoraria`, `validarPlanEstudio`) sin tests asociados, impidiendo el merge a la rama principal.
