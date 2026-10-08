@@ -1,0 +1,3 @@
+{"total": {"lines":{"total":15,"covered":13,"skipped":0,"pct":86.66},"statements":{"total":16,"covered":14,"skipped":0,"pct":87.5},"functions":{"total":5,"covered":5,"skipped":0,"pct":100},"branches":{"total":14,"covered":12,"skipped":0,"pct":85.71},"branchesTrue":{"total":0,"covered":0,"skipped":0,"pct":"Unknown"}}
+,"C:\\Users\\fbaud\\Documentos\\Facultad\\4to año\\ing-soft-3\\tp1\\ingsoft3-tp01-\\frontend\\src\\lib\\materias.js": {"lines":{"total":15,"covered":13,"skipped":0,"pct":86.66},"functions":{"total":5,"covered":5,"skipped":0,"pct":100},"statements":{"total":16,"covered":14,"skipped":0,"pct":87.5},"branches":{"total":14,"covered":12,"skipped":0,"pct":85.71}}
+}
