@@ -59,3 +59,35 @@ export function estimarHorasDedicacion(creditos) {
   if (creditos <= 4) return 8;
   return 12;
 }
+
+
+// Funciones adicionales sin tests para quebrar el umbral de coverage
+export function clasificarCargaHoraria(horasSemanales, modalidad) {
+  if (typeof horasSemanales !== 'number' || horasSemanales < 0) {
+    return 'invalida';
+  }
+  if (!modalidad) {
+    return 'sin-modalidad';
+  }
+  if (modalidad === 'presencial') {
+    if (horasSemanales > 30) return 'presencial-alta';
+    if (horasSemanales > 15) return 'presencial-media';
+    return 'presencial-baja';
+  }
+  if (modalidad === 'virtual') {
+    if (horasSemanales > 20) return 'virtual-alta';
+    return 'virtual-estandar';
+  }
+  return 'hibrida-desconocida';
+}
+
+export function validarPlanEstudio(materiasTotales, materiasAprobadas, anioIngreso) {
+  if (!materiasTotales || materiasTotales <= 0) return false;
+  if (materiasAprobadas < 0 || materiasAprobadas > materiasTotales) return false;
+  if (!anioIngreso || anioIngreso < 2000) return false;
+  const porcentaje = (materiasAprobadas / materiasTotales) * 100;
+  if (porcentaje >= 100) return 'egresado';
+  if (porcentaje >= 75) return 'tramo-final';
+  if (porcentaje >= 50) return 'intermedio';
+  return 'inicial';
+}
