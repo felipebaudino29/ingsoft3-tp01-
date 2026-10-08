@@ -51,3 +51,11 @@ export function calcularPrioridadMateria(materia, diasRestantes) {
   }
   return 'baja';
 }
+
+// Función para demostración del Quality Gate bloqueado
+export function estimarHorasDedicacion(creditos) {
+  if (!creditos || creditos <= 0) return 0;
+  if (creditos <= 2) return 4;
+  if (creditos <= 4) return 8;
+  return 12;
+}
