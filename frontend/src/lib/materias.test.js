@@ -3,7 +3,8 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   formatearContadorCursadas,
   filtrarMateriasPorEstado,
-  obtenerCursadasActivas
+  obtenerCursadasActivas,
+  calcularPrioridadMateria
 } from './materias.js';
 
 describe('Suite Frontend: Lógica de Materias y Cursadas', () => {
@@ -56,7 +57,7 @@ describe('Suite Frontend: Lógica de Materias y Cursadas', () => {
 
   // Test 4: MOCK OBLIGATORIO (vi.fn() verificando interacción)
   it('consulta la ruta correcta de la API y filtra las cursadas usando un cliente mockeado', async () => {
-    // Arrange: creamos el mock del fetch con vi.fn()
+    // Arrange: creación del mock con vi.fn()
     const clienteMock = vi.fn().mockResolvedValue({
       json: async () => [
         { id: 1, nombre: 'Ingeniería de Software 3', estado: 'Cursando' },
@@ -67,10 +68,45 @@ describe('Suite Frontend: Lógica de Materias y Cursadas', () => {
     // Act
     const resultado = await obtenerCursadasActivas(clienteMock);
 
-    // Assert: Verificamos interacción con el doble y el resultado
+    // Assert: Verificación de interacción y resultado
     expect(clienteMock).toHaveBeenCalledTimes(1);
     expect(clienteMock).toHaveBeenCalledWith('/api/materias?estado=cursando');
     expect(resultado).toHaveLength(1);
     expect(resultado[0].nombre).toBe('Ingeniería de Software 3');
+  });
+
+  // Cobertura completa de ramas para recuperar el umbral del Quality Gate
+  describe('calcularPrioridadMateria', () => {
+    it('retorna sin-datos si no se proporciona materia o no tiene nombre', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria(null, 5)).toBe('sin-datos');
+      expect(calcularPrioridadMateria({}, 5)).toBe('sin-datos');
+    });
+
+    it('retorna desconocida si los días restantes no son un número', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, '5')).toBe('desconocida');
+    });
+
+    it('retorna urgente cuando restan 2 días o menos', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, 2)).toBe('urgente');
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, 0)).toBe('urgente');
+    });
+
+    it('retorna alta cuando restan entre 3 y 7 días', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, 5)).toBe('alta');
+    });
+
+    it('retorna media cuando restan entre 8 y 15 días', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, 10)).toBe('media');
+    });
+
+    it('retorna baja cuando restan más de 15 días', () => {
+      // Arrange & Act & Assert
+      expect(calcularPrioridadMateria({ nombre: 'IS3' }, 20)).toBe('baja');
+    });
   });
 });
