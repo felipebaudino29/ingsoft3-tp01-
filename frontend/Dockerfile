@@ -25,9 +25,15 @@ ENTRYPOINT ["npm", "run", "test:ci"]
 # =========================
 FROM nginx:alpine AS final
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# En lugar de copiar un nginx.conf estático, copiamos la plantilla .template[cite: 2]
+# Nginx automáticamente procesará las variables de entorno BACKEND_URL y DNS_RESOLVER
+COPY default.conf.template /etc/nginx/templates/default.conf.template
 
 COPY --from=build /app/dist /usr/share/nginx/html
+
+# Valores por defecto para entornos locales o de desarrollo
+ENV BACKEND_URL=http://backend:8080 \
+    DNS_RESOLVER=127.0.0.11
 
 EXPOSE 80
 
