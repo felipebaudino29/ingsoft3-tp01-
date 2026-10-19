@@ -896,3 +896,50 @@ En particular, se verifico manualmente que backend y frontend pudieran construir
 - **Corrida fallida en Actions**: https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/37798537243
 - **Estado**: Abierto y bloqueado intencionalmente.
 - **Propósito**: Demostrar en vivo ante la cátedra la acción preventiva del Quality Gate ante la incorporación de código nuevo (`clasificarCargaHoraria`, `validarPlanEstudio`) sin tests asociados, impidiendo el merge a la rama principal.
+
+---
+
+# TP6 — Continuous Delivery (CD)
+
+## 1. Estrategia de despliegue y separación de entornos
+
+Para el TP6 se implementó una canalización completa de **Continuous Delivery (CD)** para el monolito contenedorizado (Node.js/Express + React con Nginx adaptado), logrando la separación estricta entre los entornos de **QA** y **Producción**.
+
+Se definieron dos entornos aislados:
+- **QA:** Destinado a validaciones continuas tras la integración en `main`.
+- **Producción:** Destinado al entorno estable de la aplicación, accesible bajo control estricto.
+
+A diferencia de un enfoque de *Continuous Deployment* (donde cada commit en `main` va directamente a producción), se adoptó *Continuous Delivery*, donde la automatización llega hasta el entorno de QA y el paso a Producción requiere una aprobación manual previa.
+
+---
+
+## 2. Bases de datos independientes en Neon
+
+Para evitar que las pruebas en QA afecten datos reales de producción, se crearon dos bases de datos independientes en la plataforma Neon:
+- `app_qa`
+- `app_prod`
+
+Cada base de datos posee su propia cadena de conexión (`DATABASE_URL`), garantizando el aislamiento total a nivel de persistencia de datos PostgreSQL.
+
+---
+
+## 3. Desactivación de Auto-Deploy en Render
+
+En Render se crearon 4 Web Services basados en Docker:
+- `miapp-api-qa` (Backend QA)
+- `miapp-api-prod` (Backend Producción)
+- `miapp-front-qa` (Frontend QA)
+- `miapp-front-prod` (Frontend Producción)
+
+Para garantizar que el ciclo de vida y los despliegues estén 100% controlados por el pipeline de CI/CD de GitHub Actions, se configuró la opción **Auto-Deploy: OFF** en los 4 servicios.
+
+De esta manera, Render no reacciona automáticamente a los pushes de Git; únicamente inicia un nuevo build y despliegue cuando recibe una petición HTTP explícita desde GitHub Actions a través de un **Deploy Hook**.
+
+---
+
+## 4. Inyección dinámica de variables de entorno en Frontend (Nginx)
+
+Para respetar el principio de *"Build Once, Deploy Anywhere"* y reutilizar la misma imagen Docker del frontend en ambos entornos, se reemplazó el archivo estático `nginx.conf` por la plantilla parametrizada:
+
+```text
+frontend/default.conf.template
