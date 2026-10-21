@@ -943,7 +943,9 @@ Para respetar el principio de *"Build Once, Deploy Anywhere"* y reutilizar la mi
 
 ```text
 frontend/default.conf.template
+```
 
+---
 
 # Decisiones de Arquitectura y Despliegue - TP7
 
