@@ -543,6 +543,7 @@ function App() {
               <div className="prose-actions font-mono">
                 {pasoFormulario < 3 && materiaEditandoId === null ? (
                   <button
+                    key="continuar"
                     type="button"
                     className="btn-brutal-solid"
                     disabled={pasoFormulario === 1 ? !nombre.trim() : !profesor.trim()}
@@ -553,6 +554,7 @@ function App() {
                   </button>
                 ) : (
                   <button
+                    key="confirmar"
                     type="submit"
                     disabled={guardandoMateria}
                     className="btn-brutal-solid"
