@@ -559,7 +559,7 @@ function App() {
                     disabled={guardandoMateria}
                     className="btn-brutal-solid"
                   >
-                    <span>{guardandoMateria ? "GUARDANDO..." : materiaEditandoId !== null ? "ACTUALIZAR" : "GUARDAR MATERIA"}</span>
+                    <span>{guardandoMateria ? "GUARDANDO..." : materiaEditandoId !== null ? "ACTUALIZAR" : "CONFIRMAR REGISTRO"}</span>
                     <span>→</span>
                   </button>
                 )}
