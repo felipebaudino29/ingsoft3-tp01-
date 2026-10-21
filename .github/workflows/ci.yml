@@ -181,8 +181,8 @@ jobs:
         run: |
           IMG_API="ghcr.io/${{ github.repository }}-backend:sha-${{ github.sha }}"
           IMG_FRONT="ghcr.io/${{ github.repository }}-frontend:sha-${{ github.sha }}"
-          curl -fsS --get --data-urlencode "imgURL=$IMG_API" "$HOOK_API"
-          curl -fsS --get --data-urlencode "imgURL=$IMG_FRONT" "$HOOK_FRONT"
+          curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_API" "$HOOK_API"
+          curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_FRONT" "$HOOK_FRONT"
 
       - name: Smoke test QA (espera a que QA responda)
         shell: bash
@@ -217,8 +217,8 @@ jobs:
         run: |
           IMG_API="ghcr.io/${{ github.repository }}-backend:sha-${{ github.sha }}"
           IMG_FRONT="ghcr.io/${{ github.repository }}-frontend:sha-${{ github.sha }}"
-          curl -fsS --get --data-urlencode "imgURL=$IMG_API" "$HOOK_API"
-          curl -fsS --get --data-urlencode "imgURL=$IMG_FRONT" "$HOOK_FRONT"
+          curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_API" "$HOOK_API"
+          curl -fsS --max-time 30 --get --data-urlencode "imgURL=$IMG_FRONT" "$HOOK_FRONT"
 
       - name: Smoke test PROD (espera a que PROD responda)
         shell: bash
