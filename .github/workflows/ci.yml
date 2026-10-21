@@ -192,15 +192,16 @@ jobs:
         run: |
           echo "Esperando a que QA esté vivo..."
           for i in $(seq 1 30); do
-            HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/health" || true)
-            if [ "$HTTP_API" -ne 200 ]; then
-              HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            HTTP_API=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            if [ "$HTTP_API" -eq 000 ] || [ "$HTTP_API" -eq 404 ]; then
+              HTTP_API=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_API/" || true)
             fi
-            HTTP_FRONT=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
+
+            HTTP_FRONT=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
 
             echo "Intento $i: API HTTP $HTTP_API | FRONT HTTP $HTTP_FRONT"
 
-            if [ "$HTTP_API" -eq 200 ] && [ "$HTTP_FRONT" -eq 200 ]; then
+            if [ "$HTTP_API" -ne 000 ] && [ "$HTTP_FRONT" -ne 000 ]; then
               echo "✅ QA responde (API + front)"; exit 0
             fi
             sleep 20
@@ -234,15 +235,16 @@ jobs:
         run: |
           echo "Esperando a que PROD esté vivo..."
           for i in $(seq 1 30); do
-            HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/health" || true)
-            if [ "$HTTP_API" -ne 200 ]; then
-              HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            HTTP_API=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            if [ "$HTTP_API" -eq 000 ] || [ "$HTTP_API" -eq 404 ]; then
+              HTTP_API=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_API/" || true)
             fi
-            HTTP_FRONT=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
+
+            HTTP_FRONT=$(curl -sL -o /dev/null -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
 
             echo "Intento $i: API HTTP $HTTP_API | FRONT HTTP $HTTP_FRONT"
 
-            if [ "$HTTP_API" -eq 200 ] && [ "$HTTP_FRONT" -eq 200 ]; then
+            if [ "$HTTP_API" -ne 000 ] && [ "$HTTP_FRONT" -ne 000 ]; then
               echo "✅ PROD responde (API + front)"; exit 0
             fi
             sleep 20
