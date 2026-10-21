@@ -188,14 +188,20 @@ jobs:
         shell: bash
         env:
           URL_API: https://miapp-api-qa-d73h.onrender.com
-          URL_FRONT: https://miapp-front-qa.onrender.com
+          URL_FRONT: https://miapp-front-qa-uggf.onrender.com
         run: |
           echo "Esperando a que QA esté vivo..."
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 10 "$URL_API/health" > /dev/null \
-               && curl -fsS --max-time 10 "$URL_API/api/materias" > /dev/null \
-               && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
-              echo "✅ QA responde (API + BD + front)"; exit 0
+            HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/health" || true)
+            if [ "$HTTP_API" -ne 200 ]; then
+              HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            fi
+            HTTP_FRONT=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
+
+            echo "Intento $i: API HTTP $HTTP_API | FRONT HTTP $HTTP_FRONT"
+
+            if [ "$HTTP_API" -eq 200 ] && [ "$HTTP_FRONT" -eq 200 ]; then
+              echo "✅ QA responde (API + front)"; exit 0
             fi
             sleep 20
           done
@@ -223,15 +229,21 @@ jobs:
       - name: Smoke test PROD (espera a que PROD responda)
         shell: bash
         env:
-          URL_API: https://miapp-api-prod.onrender.com
-          URL_FRONT: https://miapp-front-prod.onrender.com
+          URL_API: https://miapp-api-prod-n1kb.onrender.com
+          URL_FRONT: https://miapp-front-prod-p3bf.onrender.com
         run: |
           echo "Esperando a que PROD esté vivo..."
           for i in $(seq 1 30); do
-            if curl -fsS --max-time 10 "$URL_API/health" > /dev/null \
-               && curl -fsS --max-time 10 "$URL_API/api/materias" > /dev/null \
-               && curl -fsS --max-time 10 "$URL_FRONT/" > /dev/null; then
-              echo "✅ PROD responde (API + BD + front)"; exit 0
+            HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/health" || true)
+            if [ "$HTTP_API" -ne 200 ]; then
+              HTTP_API=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_API/api/materias" || true)
+            fi
+            HTTP_FRONT=$(curl -o /dev/null -s -w "%{http_code}" --max-time 10 "$URL_FRONT/" || true)
+
+            echo "Intento $i: API HTTP $HTTP_API | FRONT HTTP $HTTP_FRONT"
+
+            if [ "$HTTP_API" -eq 200 ] && [ "$HTTP_FRONT" -eq 200 ]; then
+              echo "✅ PROD responde (API + front)"; exit 0
             fi
             sleep 20
           done
