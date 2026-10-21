@@ -14,3 +14,15 @@ build/
 Thumbs.db
 .vscode/
 .idea/
+# reportes generados (se publican como artefactos, no se versionan)
+coverage/
+backend-coverage/
+frontend-coverage/
+playwright-report*/
+test-results/
+
+# Terraform: el estado tiene secretos en texto plano
+*.tfstate
+*.tfstate.*
+.terraform/
+*.tfvars

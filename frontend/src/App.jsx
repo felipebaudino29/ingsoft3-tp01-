@@ -442,7 +442,7 @@ function App() {
         </div>
       </header>
 
-      {error && <div className="terminal-alert font-mono">{error}</div>}
+      {error && <div className="terminal-alert font-mono" role="alert">{error}</div>}
 
       {/* DISPARADOR MINIMALISTA / FORMULARIO PROGRESIVO */}
       <section className="terminal-action-dock">
@@ -483,6 +483,7 @@ function App() {
                     type="text"
                     autoFocus
                     placeholder="Nombre de materia..."
+                    aria-label="Nombre de la materia"
                     value={nombre}
                     onChange={(e) => setNombre(e.target.value)}
                     onKeyDown={(e) => {
@@ -505,6 +506,7 @@ function App() {
                       type="text"
                       autoFocus={pasoFormulario === 2}
                       placeholder="Profesor / Cátedra..."
+                      aria-label="Profesor de la materia"
                       value={profesor}
                       onChange={(e) => setProfesor(e.target.value)}
                       onKeyDown={(e) => {
@@ -634,6 +636,7 @@ function App() {
                   <button
                     type="button"
                     className="btn-link danger"
+                    aria-label={`Purgar ${materia.nombre}`}
                     onClick={() => solicitarEliminarMateria(materia)}
                   >
                     [ PURGAR ]
