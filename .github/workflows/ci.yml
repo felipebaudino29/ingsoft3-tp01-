@@ -29,7 +29,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Construir etapa de tests del backend
         uses: docker/build-push-action@v6
@@ -105,7 +105,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Configurar Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Construir etapa de tests del frontend
         uses: docker/build-push-action@v6
