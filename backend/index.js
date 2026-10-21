@@ -1,26 +1,40 @@
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
+const fs = require("fs");
+const path = require("path");
 require("dotenv").config();
 
 const app = express();
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 
 app.use(cors());
 app.use(express.json());
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-});
+// En Render/Neon la conexión llega como DATABASE_URL (con SSL obligatorio);
+// en compose llega por partes (DB_HOST, DB_USER, ...), sin SSL.
+const pool = process.env.DATABASE_URL
+  ? new Pool({
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false },
+    })
+  : new Pool({
+      host: process.env.DB_HOST,
+      port: process.env.DB_PORT,
+      user: process.env.DB_USER,
+      password: process.env.DB_PASSWORD,
+      database: process.env.DB_NAME,
+    });
 
-// Migración transparente si la base ya existe sin la columna 'notas'
-pool.query(`
-  ALTER TABLE materias ADD COLUMN IF NOT EXISTS notas TEXT DEFAULT '';
-`).catch((err) => console.error("Error al asegurar columna notas:", err));
+// La base de Neon nace vacía: el esquema se crea al arrancar (idempotente).
+const esquema = fs.readFileSync(path.join(__dirname, "init.sql"), "utf8");
+pool
+  .query(esquema)
+  .then(() =>
+    pool.query("ALTER TABLE materias ADD COLUMN IF NOT EXISTS notas TEXT DEFAULT ''")
+  )
+  .then(() => console.log("Esquema de la base verificado"))
+  .catch((err) => console.error("Error al crear el esquema:", err));
 
 // =========================
 // HEALTH / INICIO
@@ -30,6 +44,11 @@ app.get("/", (req, res) => {
   res.json({
     mensaje: "API Gestor de Materias funcionando",
   });
+});
+
+// Vida del proceso (no toca la base)
+app.get("/health", (req, res) => {
+  res.json({ estado: "ok" });
 });
 
 // =========================
@@ -57,6 +76,12 @@ app.post("/materias", async (req, res) => {
     if (!nombre?.trim() || !profesor?.trim() || !estado?.trim()) {
       return res.status(400).json({
         error: "Todos los campos de la materia son obligatorios",
+      });
+    }
+
+    if (nombre.trim().length > 100 || profesor.trim().length > 100) {
+      return res.status(400).json({
+        error: "Nombre y cátedra no pueden superar los 100 caracteres",
       });
     }
 
@@ -88,6 +113,12 @@ app.put("/materias/:id", async (req, res) => {
     if (!nombre?.trim() || !profesor?.trim() || !estado?.trim()) {
       return res.status(400).json({
         error: "Todos los campos de la materia son obligatorios",
+      });
+    }
+
+    if (nombre.trim().length > 100 || profesor.trim().length > 100) {
+      return res.status(400).json({
+        error: "Nombre y cátedra no pueden superar los 100 caracteres",
       });
     }
 

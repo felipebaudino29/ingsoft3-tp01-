@@ -11,6 +11,9 @@ server {
     set $backend_api ${BACKEND_URL};
 
     location /api/ {
+        # El backend expone /materias, no /api/materias: se quita el prefijo.
+        # (proxy_pass con variable no lo recorta solo)
+        rewrite ^/api/(.*)$ /$1 break;
         proxy_pass $backend_api;
         proxy_ssl_server_name on;
     }

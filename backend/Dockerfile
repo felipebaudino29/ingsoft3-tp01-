@@ -31,7 +31,7 @@ ENV NODE_ENV=production
 COPY package*.json ./
 RUN npm ci --omit=dev
 
-COPY index.js ./
+COPY index.js init.sql ./
 COPY src/ ./src/
 
 EXPOSE 3001
