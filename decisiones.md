@@ -943,3 +943,23 @@ Para respetar el principio de *"Build Once, Deploy Anywhere"* y reutilizar la mi
 
 ```text
 frontend/default.conf.template
+
+
+# Decisiones de Arquitectura y Despliegue - TP7
+
+## 1. Estrategia "Build Once, Deploy Many"
+* **Descripción:** Los contenedores de Backend y Frontend se compilan una única vez durante el job de Integración Continua (CI) en GitHub Actions y se publican en el registry inmutable de GitHub Container Registry (GHCR).
+* **Justificación:** Se garantiza el principio de inmutabilidad del artefacto. Las imágenes que se prueban en QA son exactamente las mismas que se despliegan posteriormente en Producción, eliminando discrepancias de compilación entre entornos.
+
+## 2. Estrategia de Tagging Inmutable
+* **Formatos de Tags:** `ghcr.io/felipebaudino29/ingsoft3-tp01--backend:sha-<COMMIT_SHA>` y `ghcr.io/felipebaudino29/ingsoft3-tp01--frontend:sha-<COMMIT_SHA>`.
+* **Justificación:** El uso del SHA único del commit de Git garantiza la trazabilidad total del código fuente desplegado en cualquier momento.
+
+## 3. Aislamiento de Entornos
+* **Bases de Datos:** Se utilizan dos instancias independientes en Neon PostgreSQL (`app_qa` y `app_prod`).
+* **Servicios de Aplicación:** Se gestionan 4 Web Services independientes en Render (`miapp-api-qa`, `miapp-front-qa`, `miapp-api-prod`, `miapp-front-prod`) configurados para desplegar desde *Existing Image*.
+* **Secretos de GitHub:** Se crearon dos entornos en GitHub Actions (`qa` y `production`) para gestionar de forma aislada las URLs de los Deploy Hooks.
+
+## 4. Estrategia de Despliegue con Deploy Hooks y Smoke Tests
+* **Mecanismo:** La notificación a Render se realiza mediante peticiones `curl` dirigidas a los Deploy Hooks de cada servicio, pasando como parámetro codificado la URL de la imagen inmutable (`imgURL`).
+* **Verificación:** Tras disparar el hook, un job de *Smoke Test* realiza reintentos contra las URLs de salud (`/health`, `/api/materias` y `/`) para verificar la operatividad real del entorno antes de autorizar el flujo hacia Producción.
