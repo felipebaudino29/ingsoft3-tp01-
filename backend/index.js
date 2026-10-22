@@ -1,3 +1,4 @@
+const Sentry = require("./instrument"); // primero que todo
 const express = require("express");
 const cors = require("cors");
 const { Pool } = require("pg");
@@ -436,6 +437,17 @@ app.delete("/actividades/:id", async (req, res) => {
     res.status(500).json({ error: "Error al eliminar la actividad" });
   }
 });
+
+// =========================
+// FALLA DE PRUEBA (TP9) — temporal: se saca al terminar el práctico
+// =========================
+
+app.get("/falla", () => {
+  throw new Error("Falla de prueba del TP9");
+});
+
+// Los errores no atrapados se reportan a Sentry (va después de todas las rutas)
+Sentry.setupExpressErrorHandler(app);
 
 // =========================
 // SERVIDOR
