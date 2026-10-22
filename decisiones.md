@@ -1,3 +1,40 @@
+# Enlaces de los TP6 y TP7
+
+> Lo que no se encuentra navegando el repo: paquetes, URLs vivas y las corridas que prueban cada cosa.
+
+## URLs de los entornos (vivas hasta la defensa)
+
+| Entorno | Front (la URL que va al formulario) | API |
+|---|---|---|
+| **QA** | https://miapp-front-qa-uggf.onrender.com | https://miapp-api-qa-d73h.onrender.com |
+| **PROD** | https://miapp-front-prod-p3bf.onrender.com | https://miapp-api-prod-n1kb.onrender.com |
+
+## Paquetes públicos del registry (etiquetados `sha-<commit>`)
+
+- Backend: https://github.com/felipebaudino29/ingsoft3-tp01-/pkgs/container/ingsoft3-tp01--backend
+- Frontend: https://github.com/felipebaudino29/ingsoft3-tp01-/pkgs/container/ingsoft3-tp01--frontend
+- `docker pull --platform linux/amd64 ghcr.io/felipebaudino29/ingsoft3-tp01--backend:sha-4b3943272434da5c7514300dd58e6600bd787a60` (la imagen de `v7.0.0`), sin credenciales.
+
+## TP6 — la cadena del registry
+
+1. **PR con los tests en verde y «Entrar al registry» SALTEADO** (sólo `main` publica): https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39691870977
+2. **Corrida de `main` donde «Construir y publicar la imagen» es el ÚLTIMO paso** de cada job de build: https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39692401742
+
+## TP6 — el gate humano
+
+- **Flujo completo** QA verde → *Waiting for review* → aprobación → PROD y smoke verde: https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39692401742
+- **Rechazo con motivo** (PR #37, sólo documentación: no había nada nuevo que llevar a PROD): https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39689688991
+
+## TP7 — la e2e frenando la promoción
+
+- **Commit que rompió la app** (texto del botón «CONFIRMAR REGISTRO» → «GUARDAR MATERIA», PR #38): https://github.com/felipebaudino29/ingsoft3-tp01-/pull/38
+- **Corrida con smoke verde, integración VERDE y e2e ROJA, `deploy-prod` sin arrancar:** https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39690734358
+  - artefactos de esa corrida: `playwright-report-integracion` (verde) y `playwright-report-e2e` (rojo, con screenshot y traza) — en la sección *Artifacts* de la corrida.
+- **Fix** (PR #39) → **cadena completa en verde → aprobación → PROD:** https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39692401742
+- Release `v7.0.0` sobre el commit que quedó en PROD: https://github.com/felipebaudino29/ingsoft3-tp01-/releases/tag/v7.0.0
+
+---
+
 # Decisiones y Reflexiones - TP1
 
 ## 1. Análisis del conflicto de merge
@@ -965,3 +1002,132 @@ frontend/default.conf.template
 ## 4. Estrategia de Despliegue con Deploy Hooks y Smoke Tests
 * **Mecanismo:** La notificación a Render se realiza mediante peticiones `curl` dirigidas a los Deploy Hooks de cada servicio, pasando como parámetro codificado la URL de la imagen inmutable (`imgURL`).
 * **Verificación:** Tras disparar el hook, un job de *Smoke Test* realiza reintentos contra las URLs de salud (`/health`, `/api/materias` y `/`) para verificar la operatividad real del entorno antes de autorizar el flujo hacia Producción.
+---
+
+# TP5 — Calidad automatizada (complemento)
+
+## Qué lógica testeé y por qué ésa
+- **Backend** (`backend/src/dominio/Actividades.js`, Jest): 8 métodos de test sobre 4 reglas — validación del título (parametrizado con `it.each` + caso de error por largo), progreso de la cursada, clasificación de vencimiento (vencida / vence hoy / al día) y purga de una actividad. Es donde un bug duele: un vencimiento mal calculado le hace perder una entrega al usuario.
+- **Frontend** (`frontend/src/lib/materias.js`, Vitest): contador de cursadas, filtro por estado (parametrizado + caso de error si no es un arreglo), prioridad de una materia y el cliente de API.
+- **Mocks**: en el back, `purgarActividad` recibe el notificador de auditoría por parámetro y el test verifica con `jest.fn()` que se llamó **una sola vez**; en el front, `obtenerCursadasActivas` recibe el cliente `fetch` por parámetro y el test le pasa un `vi.fn()` (stub que contesta + mock que verifica la ruta pedida). Para poder hacerlo saqué esas dependencias afuera: antes se creaban adentro de la función y no se podían reemplazar.
+
+## Herramientas (mi stack no es el de la cátedra)
+| Lo que pide la tabla | Back (Node) | Front (React) |
+|---|---|---|
+| Parametrizado | `it.each` (Jest) | `it.each` (Vitest) |
+| Doble | `jest.fn()` | `vi.fn()` |
+| Medir cobertura | `jest --coverage` | `vitest run --coverage` (v8) |
+| Umbral que rompe | `coverageThreshold` en `package.json` | `coverage.thresholds` en `vite.config.js` |
+| Qué entra en la cuenta | `collectCoverageFrom: src/dominio/**` | `coverage.include: src/lib/**` |
+
+## El umbral
+- **70 % de líneas y 70 % de ramas**, en los dos lados. Lo puse en 70 porque cuando lo definí el back medía apenas arriba de eso y quería que me frene si baja, no un número inalcanzable.
+- **Hoy** (corrida https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39698995528): back **75 % líneas / 72,7 % ramas**; front **91,8 % líneas / 91,7 % ramas**.
+- **Qué quedó afuera de la cuenta**: en el back, `index.js` (arranque de Express, rutas y acceso a la base); en el front, `App.jsx` y `main.jsx` (componentes de pantalla y arranque). ⚠️ Honestamente: `index.js` todavía tiene validaciones adentro de las rutas (campos obligatorios, largo máximo). Es la trampa del §2.4 y queda como deuda: el paso siguiente es moverlas a `src/dominio` para que entren en la cuenta.
+
+## Por qué coverage alto no garantiza calidad
+El front da 91 %, pero el bug del formulario que se enviaba al apretar CONTINUAR (PR #36) estaba en `App.jsx`, que no se mide: lo encontró la e2e del TP7, no la cobertura. Un número alto sólo dice que el código se ejecutó, no que se verificó lo que importa.
+
+## El camino sin cubrir (rama de código)
+- **Línea**: `backend/src/dominio/Actividades.js:37` — `if (!actividad) return 'invalida'` en `clasificarEstadoActividad`. El reporte la marca: ningún test pasa por el lado verdadero.
+- **Entrada que la recorrería**: `clasificarEstadoActividad(null)` → debería devolver `'invalida'`.
+- **Decisión**: no lo agregué en esta entrega. La app nunca llama a la función sin actividad (la lista viene de la base), así que priorizo los tests de vencimiento, que son los que protegen al usuario. Queda anotado para cuando mueva la lógica de `index.js` al dominio.
+
+## El PR bloqueado
+- **PR #23** (historia completa rojo → tests → verde → merge): https://github.com/felipebaudino29/ingsoft3-tp01-/pull/23 — falló `build-frontend` por **líneas 57,14 % < 70 %** (`ERROR: Coverage for lines (57.14%) does not meet global threshold (70%)`) con todos los tests en verde; agregué los tests de `calcularPrioridadMateria` y pasó.
+- **PR #24** (el freno vigente, **abierto y en rojo hasta la defensa**): https://github.com/felipebaudino29/ingsoft3-tp01-/pull/24
+- `main` exige `build-backend` y `build-frontend` como *required checks* (configurado el 21/10: antes la regla estaba prendida pero sin checks y no frenaba nada — lo encontré revisando la entrega).
+
+## Declaración de uso de IA (TP5)
+Usé IA (Claude) para revisar la entrega contra la guía y detectar lo que faltaba (required checks vacíos, secciones de este archivo). Lo verifiqué abriendo cada PR, corrida y reporte enlazado.
+
+---
+
+# TP6 — CD (complemento)
+
+## Por qué el artefacto se publica sólo con la verificación en verde
+En cada job de build el paso que publica la imagen es el **último**, después de los tests y del reporte (antes estaba primero: lo corregí en el PR #35). Si un test falla el job muere y nunca se llega a publicar. Con eso, «está en el registry» significa «pasó la verificación»; si se publicara igual, el registry sería un depósito de imágenes sin garantía.
+
+## Continuous Delivery, no Deployment
+QA se despliega solo; PROD requiere mi aprobación en el environment `production` (*required reviewer*: yo, con *prevent self-review* apagado). Para una app de cursada, sin monitoreo fino, prefiero que el último paso lo decida una persona.
+
+## Diseño de la cadena
+`build-backend` + `build-frontend` → `deploy-qa` (`needs` los dos builds, `if` rama `main` y evento `push`, `environment: qa`) → `integracion` → `e2e` → `deploy-prod` (`environment: production`, `concurrency` para no pisar dos deploys). Los secrets de los hooks viven en su environment: `RENDER_HOOK_*_QA` en `qa`, `RENDER_HOOK_*_PROD` en `production`.
+
+## Qué mira el aprobador
+Que integración y e2e estén en verde **en esa corrida**, que el commit sea el que espero (título del PR) y que tenga sentido llevarlo a PROD (un cambio sólo de docs o de config se rechaza: no hay nada nuevo que desplegar).
+
+## Free tier
+Render duerme cada servicio a los 15 min sin tráfico (el primer pedido tarda ~1 min): el smoke espera 60 s y reintenta 30 veces cada 20 s; las e2e tienen timeout de 60 s por test y 1 reintento. Las 750 h/mes son del workspace: por eso preprod (TP8) se destruye y el monitor (TP9) se pausa.
+
+## Qué prueba el smoke y qué no
+Exige 200 en `/health`, en `/materias` (toca la base), en el front y en `/api/materias` **a través del front** (prueba el proxy de nginx). No prueba **qué versión** corre: si Render no hubiera cambiado de imagen, el smoke daría verde igual. Eso lo comprobé a mano en los *Events* de Render («Triggered via Deploy Hook» con el `sha-…`).
+
+## Qué quedó por variable y qué adentro de la imagen
+Adentro: el build de Vite y la plantilla de nginx. Por variable: `BACKEND_URL` y `DNS_RESOLVER` en el front; `DATABASE_URL` (y `SENTRY_DSN` en PROD) en el back. Por eso la **misma imagen** del front corre en QA y en PROD, cada una contra su API.
+
+## Deployment pattern para producción real
+**Blue-green**: dos entornos completos y un switch del router. Cuesta el doble de infraestructura, pero el rollback es instantáneo (volver el switch) y mi app no tiene tráfico como para que un canary dé información útil. Para canary me falta observabilidad: recién con Sentry (TP9) tengo errores y latencias.
+
+## Rollback
+Volver = re-desplegar la imagen `sha-<commit anterior>`, que sigue en el registry, re-corriendo el job `deploy-prod` de la corrida de esa versión (con aprobación). **Tiempo medido (21/10)**: aprobé el rollback a `sha-d1dfe67…` a las 22:16:54 (job https://github.com/felipebaudino29/ingsoft3-tp01-/actions/runs/39695610645); en Render → miapp-api-prod → *Events*: «Deploy started» 22:16 → «Deploy live» 22:17; el smoke confirmó PROD a las 22:18:03. **~1 min hasta live y 1 min 9 s de punta a punta** — rápido porque no se reconstruye nada: la imagen ya estaba en el registry.
+
+## Problemas encontrados (TP6/TP7) y cómo los resolví
+- **QA y PROD abrían pero no mostraban datos (502/500)**: el backend leía `DB_HOST`… pero Render tenía `DATABASE_URL`, y Neon exige SSL; además nginx no le quitaba el prefijo `/api` al pedido. Lo arreglé en el PR #35 (`DATABASE_URL` con SSL, esquema creado al arrancar, `rewrite` en nginx).
+- **Los deploys no llegaban a Render**: los secrets de los hooks apuntaban a otros servicios y el `curl ... || true` escondía el error. Recargué los cuatro hooks y saqué el `|| true` (ahora `curl -f`).
+- **El front de PROD tenía la imagen del backend** y `DATABASE_URL` en vez de `BACKEND_URL`: lo corregí en Render.
+- **El smoke aceptaba cualquier código distinto de 000** (un 500 pasaba): ahora exige 200.
+
+## Declaración de uso de IA (TP6)
+Usé IA (Claude) para diagnosticar por qué QA no mostraba datos y para reescribir el pipeline. Lo verifiqué con las corridas enlazadas y probando las URLs a mano.
+
+---
+
+# TP7 — Imagen inmutable, integración y e2e (complemento)
+
+## Build once, deploy many
+Antes Render reconstruía desde el repo y lo que corría no era la imagen verificada. Ahora el pipeline construye una vez, publica `sha-<commit>` y el hook le dice a cada servicio **qué imagen** correr (`imgURL`): QA y PROD ejecutan el mismo binario.
+
+## Etiquetas
+- `sha-<commit>` en el registry: identifica de qué commit salió cada imagen. No se publica `latest` porque no dice qué hay adentro.
+- `v7.0.0` en git: nombra lo que está en PROD. Del tag a la imagen: `git rev-list -n1 v7.0.0` → `4b39432…` → `…-backend:sha-4b3943272434da5c7514300dd58e6600bd787a60`.
+- Los servicios de Render se configuraron con una imagen inicial (`sha-5e23ee5…`), pero la que corre la decide cada deploy con su `imgURL`. Por eso **no uso Manual Deploy**: re-despliega la de *Settings*, que es vieja.
+
+## Las suites
+- **Integración** (`frontend/e2e/api.spec.js`, Playwright `request`, sin navegador, contra la API de QA): alta + listado + borrado; alta inválida (nombre vacío → 400 y no se crea nada); y la tercera, **una actividad se guarda en su materia y se borra con ella** (prueba el `ON DELETE CASCADE` de la base de verdad, algo que un doble no puede ver).
+- **E2E** (`frontend/e2e/materias.spec.js`, contra el front de QA): registrar y purgar una materia; nombre demasiado largo → error visible y nada creado; y la tercera, **la materia sigue ahí al recargar** (el flujo diario: si se pierde lo que cargué, me escriben).
+- **Qué no puse**: reglas de dominio (ya las cubren los unitarios del TP5) y estilos o pantallas sin datos.
+- **Integración amplia** (contra la API desplegada): prueba también el deploy y la base real, sin levantar Postgres en el pipeline; pierde aislamiento (QA es compartido) y velocidad.
+
+## El diagnóstico verde/rojo
+En la corrida 39690734358 la **integración quedó verde** y la **e2e roja**: la API y la base estaban sanas, el problema estaba en la pantalla (el botón cambió de texto). Fila 1 de la tabla del §2.5.
+
+## Un bug real que encontró la e2e
+La primera corrida con e2e (39681311569) falló porque el formulario se enviaba al apretar el segundo CONTINUAR: React reutilizaba el mismo `<button>` y le cambiaba el `type` a `submit` durante el clic. Lo arreglé con un `key` distinto en cada botón (PR #36).
+
+## Cold start y flaky
+Timeout de 60 s por test, 15 s por aserción y 1 reintento: el smoke ya despertó QA antes. Un test que pasa recién al reintentar sale como *flaky*: lo miro aunque la corrida esté verde.
+
+## Declaración de uso de IA (TP7)
+Usé IA (Claude) para escribir los specs de Playwright y los jobs. Lo verifiqué con las corridas enlazadas y leyendo el reporte HTML de la e2e cuando falló.
+
+---
+
+# TP8 — Infraestructura como Código
+
+- **Riel**: Terraform v1.16.6 contra Neon + Render. Providers fijados: `kislerdm/neon` **0.18.0** y `render-oss/render` **1.9.1** (más el `.terraform.lock.hcl` commiteado).
+- **Qué declara** `infra/`: un entorno **preprod** nuevo (proyecto, rol y base de Neon; API y front en Render con la imagen de `v7.0.0`). `DATABASE_URL` se arma con lo que devuelve Neon y `BACKEND_URL` sale del `url` de la API: nada se copia a mano. QA y PROD no se tocaron.
+- **Problemas**: (1) `terraform` no se reconocía en la terminal abierta antes de instalarlo: agregué la carpeta al PATH de esa sesión. (2) Neon respondió `org_id is required`: la API ahora exige la organización; agregué la variable `neon_org_id`, que paso por `TF_VAR_neon_org_id` sin escribirla en el código. (3) Las claves (`NEON_API_KEY`, `RENDER_API_KEY`, `RENDER_OWNER_ID`) van por variables de entorno; el estado queda en mi máquina y fuera del repo.
+- **Ciclo hecho**: `apply` → `destroy` (orden: front → api → base → rol → proyecto) → `apply` (mismas URLs; el host de la base cambió y la conexión se re-derivó sola) → `destroy`.
+- **IA**: usé IA (Claude) para escribir el HCL; lo verifiqué leyendo cada `plan` antes de aplicar y probando `/health`, `/materias` y el front de preprod.
+
+---
+
+# TP9 — DevSecOps + Observabilidad
+
+- **Dependabot**: `.github/dependabot.yml` (PR #41) para npm del back, npm del front y GitHub Actions; alertas y *security updates* prendidas. Mergeé el **PR #51: `vite` 8.2.2 → 8.3.4** — es un cambio **minor** (SemVer: agrega sin romper) y su CI quedó en verde; la cadena posterior (QA → integración → e2e) volvió a verificar la app con esa versión. No mergeé los **#52 / #54** (vitest y su plugin de coverage 3 → 5, **major**): el CI los frenó porque son incompatibles por separado (`ERESOLVE`).
+- **CodeQL**: *default setup* (JavaScript/TypeScript y Actions). **Push protection y secret scanning**: activos (vienen siempre prendidos en repos públicos).
+- **Monitor** (UptimeRobot, `/health` de la API de PROD, cada 5 min): suspendí PROD a las **21:58** → alerta DOWN a las **22:02** (primera detección 22:01:45, confirmada desde 3 ubicaciones) → reanudé a las **22:04** → alerta UP a las **22:07** (incidente de 5 min 5 s: 22:02:31 → 22:07:36). Tiempo de detección: **~4 min** (contra horas si me avisaba un usuario). Monitor **pausado** al terminar.
+- **Sentry** (PR #57): back con `@sentry/node` (se prende sólo si existe `SENTRY_DSN`, que está sólo en PROD) y front con `@sentry/react`. Error visto: «Falla de prueba del TP9» (endpoint temporal `/falla`). Operación más usada: **`GET /materias`** (la que más tiempo total suma: es la que carga la pantalla cada vez). Más lenta: **`POST /materias`**, P95 **434,6 ms** (con `GET /materias` casi igual, 431 ms). En *Queries by Time Spent* se ve por qué: el `connect` a la base tarda **350 ms** contra 72 ms del `SELECT` — es Neon despertando (se suspende a los 5 min sin uso). Con ese dato abrí la tarjeta en el tablero.
+- **Problemas**: el `SENTRY_DSN` cargado en Render era de un proyecto anterior y el back no reportaba; lo cambié por el de `gestor-backend` y re-desplegué PROD.
+- **IA**: usé IA (Claude) para la integración de Sentry y la configuración de Dependabot; lo verifiqué viendo el error en Sentry y las corridas en verde.
